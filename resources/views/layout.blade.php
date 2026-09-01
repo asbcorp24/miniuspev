@@ -32,6 +32,7 @@
                     <a class="nav-link" href="{{ route('reports') }}">Отчеты</a>
                     @if(auth()->user()?->isAdmin())
                         <a class="nav-link" href="{{ route('admin.teachers') }}">Преподаватели</a>
+                        <a class="nav-link" href="{{ route('admin.students') }}">Доступ студентов</a>
                     @endif
                 @endif
             </div>
