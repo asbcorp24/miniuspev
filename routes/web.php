@@ -8,6 +8,7 @@ use App\Http\Controllers\HomeworkController;
 use App\Http\Controllers\JournalController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\TeacherNotificationController;
@@ -27,6 +28,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/student/notifications', [NotificationController::class, 'index'])->name('student.notifications');
     Route::post('/student/notifications/{notification}/read', [NotificationController::class, 'read'])->name('student.notifications.read');
     Route::post('/student/notifications/read-all', [NotificationController::class, 'readAll'])->name('student.notifications.read-all');
+
+    Route::get('/schedule', [ScheduleController::class, 'index'])->name('schedule.index');
+    Route::post('/schedule', [ScheduleController::class, 'store'])->name('schedule.store');
+    Route::delete('/schedule/{entry}', [ScheduleController::class, 'destroy'])->name('schedule.destroy');
+    Route::get('/schedule-events', [ScheduleController::class, 'events'])->name('schedule.events');
 
     Route::get('/absence-documents', [AbsenceDocumentController::class, 'index'])->name('absence-documents.index');
     Route::post('/absence-documents', [AbsenceDocumentController::class, 'store'])->name('absence-documents.store');
