@@ -20,9 +20,24 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid px-4">
         <a class="navbar-brand" href="{{ route('dashboard') }}">MiniUspev</a>
-        <div class="navbar-nav">
-            <a class="nav-link" href="{{ route('dashboard') }}">Сводка</a>
-            <a class="nav-link" href="{{ route('journal') }}">Журнал</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <div class="navbar-nav me-auto">
+                <a class="nav-link" href="{{ route('dashboard') }}">Сводка</a>
+                <a class="nav-link" href="{{ route('journal') }}">Журнал</a>
+                @if(auth()->user()?->isAdmin())
+                    <a class="nav-link" href="{{ route('admin.teachers') }}">Преподаватели</a>
+                @endif
+            </div>
+            @auth
+            <div class="d-flex align-items-center gap-3 text-white">
+                <div class="small text-end">
+                    <div>{{ auth()->user()->name }}</div>
+                    <div class="text-white-50">{{ auth()->user()->isAdmin() ? 'Администратор' : 'Преподаватель' }}</div>
+                </div>
+                <form method="POST" action="{{ route('logout') }}">@csrf<button class="btn btn-outline-light btn-sm">Выйти</button></form>
+            </div>
+            @endauth
         </div>
     </div>
 </nav>
