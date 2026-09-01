@@ -40,6 +40,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/journal', [JournalController::class, 'journal'])->name('journal');
     Route::post('/lessons', [JournalController::class, 'createLesson'])->name('lessons.store');
+    Route::post('/lessons/{lesson}/attendance', [JournalController::class, 'bulkAttendance'])->name('lessons.attendance.bulk');
     Route::patch('/records/{record}', [JournalController::class, 'updateRecord'])->name('records.update');
     Route::post('/groups', [JournalController::class, 'storeGroup'])->name('groups.store');
     Route::post('/students', [JournalController::class, 'storeStudent'])->name('students.store');
