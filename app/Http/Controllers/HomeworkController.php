@@ -149,7 +149,7 @@ class HomeworkController extends Controller
                 'Домашняя работа проверена',
                 $submission->homework->subject->name.': '.$submission->homework->title.' — оценка '.$data['grade'].($data['teacher_comment'] ? '. '.$data['teacher_comment'] : ''),
                 route('homeworks.index'),
-                'homework-grade:'.$submission->id.':'.$submission->updated_at?->timestamp,
+                'homework-grade:'.$submission->id.':'.($submission->updated_at?->timestamp ?? time()),
                 ['submission_id' => $submission->id, 'grade' => $data['grade']]
             );
         }
@@ -183,7 +183,7 @@ class HomeworkController extends Controller
                 'Работа возвращена на доработку',
                 $submission->homework->subject->name.': '.$submission->homework->title.'. '.$data['teacher_comment'],
                 route('homeworks.index'),
-                'homework-returned:'.$submission->id.':'.$submission->updated_at?->timestamp,
+                'homework-returned:'.$submission->id.':'.($submission->updated_at?->timestamp ?? time()),
                 ['submission_id' => $submission->id]
             );
         }
