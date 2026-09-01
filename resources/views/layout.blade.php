@@ -17,6 +17,13 @@
     </style>
 </head>
 <body>
+@php
+    $studentUnread = 0;
+    if (auth()->check() && auth()->user()->isStudent()) {
+        \App\Services\StudentNotificationService::syncDeadlineReminders(auth()->user());
+        $studentUnread = \App\Models\StudentNotification::where('user_id', auth()->id())->whereNull('read_at')->count();
+    }
+@endphp
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid px-4">
         <a class="navbar-brand" href="{{ auth()->check() && auth()->user()->isStudent() ? route('student.dashboard') : route('dashboard') }}">MiniUspev</a>
@@ -26,6 +33,7 @@
                 @if(auth()->check() && auth()->user()->isStudent())
                     <a class="nav-link" href="{{ route('student.dashboard') }}">Мой кабинет</a>
                     <a class="nav-link" href="{{ route('homeworks.index') }}">Домашние задания</a>
+                    <a class="nav-link" href="{{ route('student.notifications') }}">Уведомления @if($studentUnread)<span class="badge rounded-pill text-bg-danger">{{ $studentUnread }}</span>@endif</a>
                 @else
                     <a class="nav-link" href="{{ route('dashboard') }}">Сводка</a>
                     <a class="nav-link" href="{{ route('journal') }}">Журнал</a>
