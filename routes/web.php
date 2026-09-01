@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HomeworkController;
 use App\Http\Controllers\JournalController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentDashboardController;
@@ -20,6 +21,9 @@ Route::middleware('auth')->group(function () {
         return app(JournalController::class)->dashboard();
     })->name('dashboard');
     Route::get('/student/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
+    Route::get('/student/notifications', [NotificationController::class, 'index'])->name('student.notifications');
+    Route::post('/student/notifications/{notification}/read', [NotificationController::class, 'read'])->name('student.notifications.read');
+    Route::post('/student/notifications/read-all', [NotificationController::class, 'readAll'])->name('student.notifications.read-all');
 
     Route::get('/journal', [JournalController::class, 'journal'])->name('journal');
     Route::post('/lessons', [JournalController::class, 'createLesson'])->name('lessons.store');
@@ -37,6 +41,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/homeworks/{homework}', [HomeworkController::class, 'show'])->name('homeworks.show');
     Route::post('/homeworks/{homework}/submit', [HomeworkController::class, 'submit'])->name('homeworks.submit');
     Route::post('/homework-submissions/{submission}/grade', [HomeworkController::class, 'grade'])->name('homeworks.grade');
+    Route::post('/homework-submissions/{submission}/return', [HomeworkController::class, 'returnForRevision'])->name('homeworks.return');
     Route::get('/homework-files/{file}/download', [HomeworkController::class, 'download'])->name('homeworks.files.download');
 
     Route::get('/admin/teachers', [AdminController::class, 'teachers'])->name('admin.teachers');
