@@ -15,7 +15,10 @@ Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-    Route::get('/', [JournalController::class, 'dashboard'])->name('dashboard');
+    Route::get('/', function () {
+        if (auth()->user()->isStudent()) return redirect()->route('student.dashboard');
+        return app(JournalController::class)->dashboard();
+    })->name('dashboard');
     Route::get('/student/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
 
     Route::get('/journal', [JournalController::class, 'journal'])->name('journal');
