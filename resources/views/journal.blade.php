@@ -1,0 +1,151 @@
+@extends('layout')
+@section('title', 'Журнал — MiniUspev')
+
+@section('content')
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Электронный журнал</h1>
+        <div class="text-muted">Посещаемость, оценки и комментарии по каждому занятию</div>
+    </div>
+</div>
+
+<div class="card stat-card mb-4">
+    <div class="card-body">
+        <form method="get" action="{{ route('journal') }}" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label">Группа</label>
+                <select name="group_id" class="form-select" required>
+                    @foreach($groups as $g)<option value="{{ $g->id }}" @selected($group && $group->id === $g->id)>{{ $g->name }}</option>@endforeach
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Дисциплина</label>
+                <select name="subject_id" class="form-select" required>
+                    @foreach($subjects as $s)<option value="{{ $s->id }}" @selected($subject && $subject->id === $s->id)>{{ $s->name }}</option>@endforeach
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Показать</button></div>
+        </form>
+    </div>
+</div>
+
+@if($group && $subject)
+<div class="card stat-card mb-4">
+    <div class="card-header bg-white fw-semibold">Добавить занятие — {{ $group->name }} / {{ $subject->name }}</div>
+    <div class="card-body">
+        <form method="post" action="{{ route('lessons.store') }}" class="row g-2">@csrf
+            <input type="hidden" name="group_id" value="{{ $group->id }}">
+            <input type="hidden" name="subject_id" value="{{ $subject->id }}">
+            <div class="col-md-3"><input class="form-control" type="date" name="lesson_date" value="{{ now()->format('Y-m-d') }}" required></div>
+            <div class="col-md-7"><input class="form-control" name="topic" placeholder="Тема занятия"></div>
+            <div class="col-md-2"><button class="btn btn-success w-100">Добавить</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="card stat-card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong>{{ $group->name }} — {{ $subject->name }}</strong>
+        <small class="text-muted">Оценки: 2–5. П — присутствовал, Н — прогул, О — опоздал, У — уважительная.</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-bordered journal-table mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="student-col">Студент</th>
+                    <th>Ср. балл</th>
+                    <th>Посещ.</th>
+                    @foreach($lessons as $lesson)
+                        <th class="lesson-col text-center">
+                            <div>{{ $lesson->lesson_date->format('d.m') }}</div>
+                            <small class="text-muted" title="{{ $lesson->topic }}">{{ \Illuminate\Support\Str::limit($lesson->topic ?: 'Без темы', 18) }}</small>
+                        </th>
+                    @endforeach
+                </tr>
+            </thead>
+            <tbody>
+            @forelse($group->students as $student)
+                <tr>
+                    <td class="student-col fw-semibold">{{ $student->full_name }}</td>
+                    <td id="avg-{{ $student->id }}">{{ $student->averageGrade($subject->id) ?? '—' }}</td>
+                    <td id="att-{{ $student->id }}">{{ ($student->attendancePercent($subject->id) ?? '—') }}{{ $student->attendancePercent($subject->id) !== null ? '%' : '' }}</td>
+                    @foreach($lessons as $lesson)
+                        @php($record = $lesson->records->firstWhere('student_id', $student->id))
+                        <td>
+                            @if($record)
+                            <div class="d-flex gap-1 mb-1">
+                                <select class="form-select form-select-sm js-record" data-id="{{ $record->id }}" data-field="attendance">
+                                    <option value="present" @selected($record->attendance==='present')>П</option>
+                                    <option value="absent" @selected($record->attendance==='absent')>Н</option>
+                                    <option value="late" @selected($record->attendance==='late')>О</option>
+                                    <option value="excused" @selected($record->attendance==='excused')>У</option>
+                                </select>
+                                <select class="form-select form-select-sm js-record" data-id="{{ $record->id }}" data-field="grade">
+                                    <option value="">—</option>
+                                    @for($grade=2;$grade<=5;$grade++)<option value="{{ $grade }}" @selected((int)$record->grade===$grade)>{{ $grade }}</option>@endfor
+                                </select>
+                            </div>
+                            <input class="form-control form-control-sm js-record js-comment" data-id="{{ $record->id }}" data-field="comment" value="{{ $record->comment }}" placeholder="Комментарий">
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                    @endforeach
+                </tr>
+            @empty
+                <tr><td colspan="99" class="text-center text-muted py-5">В группе пока нет студентов.</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+@else
+<div class="alert alert-info">Сначала добавьте группу и дисциплину на странице «Сводка».</div>
+@endif
+@endsection
+
+@push('scripts')
+<script>
+const csrf = document.querySelector('meta[name="csrf-token"]').content;
+let commentTimers = {};
+
+async function saveRecord(el) {
+    const id = el.dataset.id;
+    const field = el.dataset.field;
+    let value = el.value;
+    if (field === 'grade' && value === '') value = null;
+
+    const response = await fetch(`/records/${id}`, {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},
+        body: JSON.stringify({[field]: value})
+    });
+    if (!response.ok) {
+        el.classList.add('is-invalid');
+        return;
+    }
+    const data = await response.json();
+    el.classList.remove('is-invalid');
+    el.classList.add('save-ok');
+    setTimeout(() => el.classList.remove('save-ok'), 450);
+
+    if (data.record && data.record.student_id) {
+        const avg = document.getElementById(`avg-${data.record.student_id}`);
+        const att = document.getElementById(`att-${data.record.student_id}`);
+        if (avg) avg.textContent = data.average ?? '—';
+        if (att) att.textContent = data.attendance_percent === null ? '—' : `${data.attendance_percent}%`;
+    }
+}
+
+document.querySelectorAll('.js-record').forEach(el => {
+    if (el.classList.contains('js-comment')) {
+        el.addEventListener('input', () => {
+            clearTimeout(commentTimers[el.dataset.id]);
+            commentTimers[el.dataset.id] = setTimeout(() => saveRecord(el), 600);
+        });
+    } else {
+        el.addEventListener('change', () => saveRecord(el));
+    }
+});
+</script>
+@endpush
