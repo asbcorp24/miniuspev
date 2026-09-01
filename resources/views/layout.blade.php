@@ -43,11 +43,13 @@
                     <a class="nav-link" href="{{ route('dashboard') }}">Сводка</a>
                     <a class="nav-link" href="{{ route('journal') }}">Журнал</a>
                     <a class="nav-link" href="{{ route('homeworks.index') }}">Домашние задания</a>
+                    <a class="nav-link" href="{{ route('academic.finals') }}">Итоги</a>
                     <a class="nav-link" href="{{ route('reports') }}">Отчеты</a>
                     @if(auth()->user()?->isTeacher())
                         <a class="nav-link" href="{{ route('teacher.notifications') }}">Уведомления @if($teacherUnread)<span class="badge rounded-pill text-bg-danger">{{ $teacherUnread }}</span>@endif</a>
                     @endif
                     @if(auth()->user()?->isAdmin())
+                        <a class="nav-link" href="{{ route('academic.settings') }}">Семестры</a>
                         <a class="nav-link" href="{{ route('admin.teachers') }}">Преподаватели</a>
                         <a class="nav-link" href="{{ route('admin.students') }}">Доступ студентов</a>
                     @endif
@@ -55,10 +57,7 @@
             </div>
             @auth
             <div class="d-flex align-items-center gap-3 text-white">
-                <div class="small text-end">
-                    <div>{{ auth()->user()->name }}</div>
-                    <div class="text-white-50">{{ auth()->user()->isAdmin() ? 'Администратор' : (auth()->user()->isStudent() ? 'Студент' : 'Преподаватель') }}</div>
-                </div>
+                <div class="small text-end"><div>{{ auth()->user()->name }}</div><div class="text-white-50">{{ auth()->user()->isAdmin() ? 'Администратор' : (auth()->user()->isStudent() ? 'Студент' : 'Преподаватель') }}</div></div>
                 <form method="POST" action="{{ route('logout') }}">@csrf<button class="btn btn-outline-light btn-sm">Выйти</button></form>
             </div>
             @endauth
