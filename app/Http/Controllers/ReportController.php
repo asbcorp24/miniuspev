@@ -55,8 +55,9 @@ class ReportController extends Controller
             $rows = $group->students->map(function(Student $student) use ($subject,$period) {
                 $recordQuery = JournalRecord::where('student_id',$student->id)
                     ->whereHas('lesson',fn($q)=>$q->where('subject_id',$subject->id)->where('academic_period_id',$period->id));
-                $total=(clone $recordQuery)->count();
-                $present=(clone $recordQuery)->whereIn('attendance',['present','late'])->count();
+                $marked=(clone $recordQuery)->where('attendance','!=','unmarked');
+                $total=(clone $marked)->count();
+                $present=(clone $marked)->whereIn('attendance',['present','late'])->count();
                 $final=FinalGrade::where('student_id',$student->id)->where('subject_id',$subject->id)->where('academic_period_id',$period->id)->first();
                 $journalDebts=(clone $recordQuery)->where('grade',2)->count();
                 return [
@@ -81,7 +82,8 @@ class ReportController extends Controller
         $lines=["ФИО;Группа;Дисциплина;Период;Взвешенный балл;Итоговая оценка;Посещаемость %;Прогулы;Задолженности"];
         foreach($group->students as $student){
             $recordQuery=JournalRecord::where('student_id',$student->id)->whereHas('lesson',fn($q)=>$q->where('subject_id',$subjectId)->where('academic_period_id',$periodId));
-            $total=(clone $recordQuery)->count(); $present=(clone $recordQuery)->whereIn('attendance',['present','late'])->count();
+            $marked=(clone $recordQuery)->where('attendance','!=','unmarked');
+            $total=(clone $marked)->count(); $present=(clone $marked)->whereIn('attendance',['present','late'])->count();
             $final=FinalGrade::where('student_id',$student->id)->where('subject_id',$subjectId)->where('academic_period_id',$periodId)->value('final_grade');
             $debts=(clone $recordQuery)->where('grade',2)->count()+$this->homeworkDebtCount($student->id,$subjectId,$periodId);
             $lines[]=implode(';',[$student->full_name,$group->name,$subject->name,$period->label,GradeCalculationService::weightedAverage($student->id,$subjectId,$periodId)??'',$final??'',$total?round($present*100/$total,1):'',(clone $recordQuery)->where('attendance','absent')->count(),$debts]);
