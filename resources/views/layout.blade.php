@@ -19,9 +19,14 @@
 <body>
 @php
     $studentUnread = 0;
+    $teacherUnread = 0;
     if (auth()->check() && auth()->user()->isStudent()) {
         \App\Services\StudentNotificationService::syncDeadlineReminders(auth()->user());
         $studentUnread = \App\Models\StudentNotification::where('user_id', auth()->id())->whereNull('read_at')->count();
+    }
+    if (auth()->check() && auth()->user()->isTeacher()) {
+        \App\Services\TeacherNotificationService::syncRiskAlerts(auth()->user());
+        $teacherUnread = \App\Models\StudentNotification::where('user_id', auth()->id())->whereNull('read_at')->count();
     }
 @endphp
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
@@ -39,6 +44,9 @@
                     <a class="nav-link" href="{{ route('journal') }}">Журнал</a>
                     <a class="nav-link" href="{{ route('homeworks.index') }}">Домашние задания</a>
                     <a class="nav-link" href="{{ route('reports') }}">Отчеты</a>
+                    @if(auth()->user()?->isTeacher())
+                        <a class="nav-link" href="{{ route('teacher.notifications') }}">Уведомления @if($teacherUnread)<span class="badge rounded-pill text-bg-danger">{{ $teacherUnread }}</span>@endif</a>
+                    @endif
                     @if(auth()->user()?->isAdmin())
                         <a class="nav-link" href="{{ route('admin.teachers') }}">Преподаватели</a>
                         <a class="nav-link" href="{{ route('admin.students') }}">Доступ студентов</a>
