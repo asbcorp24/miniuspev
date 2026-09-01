@@ -6,6 +6,7 @@ use App\Models\AcademicPeriod;
 use App\Models\Group;
 use App\Models\JournalRecord;
 use App\Models\Lesson;
+use App\Models\ScheduleEntry;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\WorkType;
@@ -40,6 +41,7 @@ class JournalController extends Controller
 
     public function dashboard(): View
     {
+        $user = auth()->user();
         $groupIds = $this->allowedGroupIds();
         $subjectIds = $this->allowedSubjectIds();
         $students = Student::with('group')->whereIn('group_id', $groupIds)->where('active', true)->get();
@@ -48,6 +50,16 @@ class JournalController extends Controller
         $marked = (clone $recordQuery)->where('attendance', '!=', 'unmarked');
         $total = (clone $marked)->count();
         $absent = (clone $marked)->where('attendance', 'absent')->count();
+        $activePeriodId = AcademicPeriod::where('active',true)->value('id');
+
+        $todaySchedule = ScheduleEntry::with(['group','subject','teacher'])
+            ->where('active',true)
+            ->where('weekday',now()->dayOfWeekIso)
+            ->when($activePeriodId,fn($q)=>$q->where('academic_period_id',$activePeriodId))
+            ->whereIn('group_id',$groupIds)
+            ->whereIn('subject_id',$subjectIds)
+            ->when($user->isTeacher(),fn($q)=>$q->where('teacher_id',$user->id))
+            ->orderBy('starts_at')->get();
 
         return view('dashboard', [
             'groups' => Group::whereIn('id', $groupIds)->withCount('students')->orderBy('name')->get(),
@@ -56,6 +68,7 @@ class JournalController extends Controller
             'averageGrade' => $avg ? round((float) $avg, 2) : null,
             'absencePercent' => $total ? round($absent * 100 / $total, 1) : 0,
             'recentLessons' => Lesson::with(['group', 'subject'])->whereIn('group_id', $groupIds)->whereIn('subject_id', $subjectIds)->latest('lesson_date')->limit(10)->get(),
+            'todaySchedule' => $todaySchedule,
         ]);
     }
 
@@ -149,24 +162,11 @@ class JournalController extends Controller
         $record->update($data);
 
         if ($oldGrade !== $newGrade) {
-            GradeAuditService::log(
-                $record->student_id,
-                'journal',
-                $record->id,
-                $oldGrade,
-                $newGrade,
-                $request->user(),
-                $reason ?: ($oldGrade === null ? 'Первичная оценка' : 'Изменение оценки'),
-                $record->comment
-            );
+            GradeAuditService::log($record->student_id,'journal',$record->id,$oldGrade,$newGrade,$request->user(),$reason ?: ($oldGrade === null ? 'Первичная оценка' : 'Изменение оценки'),$record->comment);
         }
 
         $record->load('student');
-        return response()->json([
-            'ok'=>true,'record'=>$record,
-            'average'=>$record->student->averageGrade($record->lesson->subject_id),
-            'attendance_percent'=>$record->student->attendancePercent($record->lesson->subject_id),
-        ]);
+        return response()->json(['ok'=>true,'record'=>$record,'average'=>$record->student->averageGrade($record->lesson->subject_id),'attendance_percent'=>$record->student->attendancePercent($record->lesson->subject_id)]);
     }
 
     public function storeGroup(Request $request): RedirectResponse
