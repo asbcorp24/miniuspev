@@ -6,6 +6,7 @@ use App\Http\Controllers\HomeworkController;
 use App\Http\Controllers\JournalController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -15,6 +16,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::get('/', [JournalController::class, 'dashboard'])->name('dashboard');
+    Route::get('/student/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
+
     Route::get('/journal', [JournalController::class, 'journal'])->name('journal');
     Route::post('/lessons', [JournalController::class, 'createLesson'])->name('lessons.store');
     Route::patch('/records/{record}', [JournalController::class, 'updateRecord'])->name('records.update');
