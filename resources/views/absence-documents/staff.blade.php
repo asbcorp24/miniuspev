@@ -1,0 +1,9 @@
+@extends('layout')
+@section('title','Справки студентов')
+@section('content')
+<div class="d-flex justify-content-between align-items-center mb-4"><div><h1 class="h3 mb-1">Справки студентов</h1><div class="text-muted">Проверка документов и подтверждение уважительных пропусков</div></div></div>
+<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Студент</th><th>Группа</th><th>Период</th><th>Документ</th><th>Статус</th><th style="min-width:360px">Решение</th></tr></thead><tbody>
+@forelse($documents as $d)<tr><td><a href="{{ route('students.show',$d->student) }}">{{ $d->student->full_name }}</a><div class="small text-muted">{{ $d->student_comment ?: 'Без комментария' }}</div></td><td>{{ $d->student->group?->name }}</td><td>{{ $d->date_from->format('d.m.Y') }}–{{ $d->date_to->format('d.m.Y') }}</td><td><a href="{{ route('absence-documents.download',$d) }}">{{ $d->original_name }}</a></td><td>@if($d->status==='approved')<span class="badge text-bg-success">Подтверждена</span>@elseif($d->status==='rejected')<span class="badge text-bg-danger">Отклонена</span>@else<span class="badge text-bg-warning">На проверке</span>@endif @if($d->reviewer)<div class="small text-muted mt-1">{{ $d->reviewer->name }}</div>@endif</td><td><form method="POST" action="{{ route('absence-documents.review',$d) }}" class="row g-2">@csrf<div class="col-12"><input class="form-control form-control-sm" name="review_comment" value="{{ $d->review_comment }}" placeholder="Комментарий к решению"></div><div class="col-6"><button name="status" value="approved" class="btn btn-success btn-sm w-100">Подтвердить</button></div><div class="col-6"><button name="status" value="rejected" class="btn btn-outline-danger btn-sm w-100">Отклонить</button></div></form></td></tr>
+@empty<tr><td colspan="6" class="text-center text-muted py-4">Справок пока нет.</td></tr>@endforelse
+</tbody></table></div></div>
+@endsection
