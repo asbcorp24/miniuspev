@@ -30,16 +30,24 @@ class DatabaseSeeder extends Seeder
 
         User::updateOrCreate(
             ['email' => 'admin@example.com'],
-            ['name' => 'Администратор', 'password' => Hash::make('password'), 'role' => 'admin']
+            ['name' => 'Администратор', 'password' => Hash::make('password'), 'role' => 'admin', 'student_id' => null]
         );
 
         $teacher = User::updateOrCreate(
             ['email' => 'teacher@example.com'],
-            ['name' => 'Иванов Иван Иванович', 'password' => Hash::make('password'), 'role' => 'teacher']
+            ['name' => 'Иванов Иван Иванович', 'password' => Hash::make('password'), 'role' => 'teacher', 'student_id' => null]
         );
 
         $teacher->groups()->syncWithoutDetaching([
             $group->id => ['subject_id' => $subject1->id]
         ]);
+
+        $student = Student::where('student_number', 'ST-1')->first();
+        if ($student) {
+            User::updateOrCreate(
+                ['email' => 'student@example.com'],
+                ['name' => $student->full_name, 'password' => Hash::make('password'), 'role' => 'student', 'student_id' => $student->id]
+            );
+        }
     }
 }
