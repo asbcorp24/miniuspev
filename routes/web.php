@@ -36,4 +36,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/teachers', [AdminController::class, 'teachers'])->name('admin.teachers');
     Route::post('/admin/teachers', [AdminController::class, 'storeTeacher'])->name('admin.teachers.store');
     Route::post('/admin/teachers/{user}/assign', [AdminController::class, 'assign'])->name('admin.teachers.assign');
+
+    Route::get('/admin/students', [AdminController::class, 'students'])->name('admin.students');
+    Route::post('/admin/students/{student}/account', [AdminController::class, 'createStudentAccount'])->name('admin.students.account');
+    Route::post('/admin/student-accounts/{user}/password', [AdminController::class, 'resetStudentPassword'])->name('admin.students.password');
+    Route::post('/admin/students/accounts/bulk', [AdminController::class, 'bulkCreateStudentAccounts'])->name('admin.students.bulk');
 });
