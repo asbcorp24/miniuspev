@@ -8,6 +8,8 @@ use App\Models\HomeworkSubmission;
 use App\Models\Student;
 use App\Models\Group;
 use App\Models\Subject;
+use App\Models\User;
+use App\Services\StudentNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
@@ -22,6 +24,7 @@ class HomeworkController extends Controller
 
         if ($user->role === 'student') {
             abort_unless($user->student_id, 403);
+            StudentNotificationService::syncDeadlineReminders($user);
             $student = Student::with('group')->findOrFail($user->student_id);
             $homeworks = Homework::with(['subject','group','submissions' => fn($q) => $q->where('student_id', $student->id)->with('files')])
                 ->where('group_id', $student->group_id)
@@ -61,7 +64,19 @@ class HomeworkController extends Controller
         }
 
         $data['teacher_id'] = $user->id;
-        Homework::create($data);
+        $homework = Homework::create($data);
+        $homework->load('subject');
+
+        StudentNotificationService::createForGroup(
+            $homework->group_id,
+            'homework',
+            'Новое домашнее задание',
+            $homework->subject->name.': '.$homework->title.($homework->due_at ? ' · до '.$homework->due_at->format('d.m.Y H:i') : ''),
+            route('homeworks.index'),
+            'homework:'.$homework->id,
+            ['homework_id' => $homework->id]
+        );
+
         return back()->with('success', 'Домашнее задание создано.');
     }
 
@@ -111,7 +126,7 @@ class HomeworkController extends Controller
     {
         $user = $request->user();
         abort_if($user->role === 'student', 403);
-        $submission->load('homework');
+        $submission->load('homework.subject');
         if (!$user->isAdmin()) abort_unless($submission->homework->teacher_id === $user->id, 403);
 
         $data = $request->validate([
@@ -126,7 +141,54 @@ class HomeworkController extends Controller
             'status' => 'graded',
         ]);
 
+        $studentUser = User::where('role','student')->where('student_id', $submission->student_id)->first();
+        if ($studentUser) {
+            StudentNotificationService::createForUser(
+                $studentUser,
+                'homework_grade',
+                'Домашняя работа проверена',
+                $submission->homework->subject->name.': '.$submission->homework->title.' — оценка '.$data['grade'].($data['teacher_comment'] ? '. '.$data['teacher_comment'] : ''),
+                route('homeworks.index'),
+                'homework-grade:'.$submission->id.':'.$submission->updated_at?->timestamp,
+                ['submission_id' => $submission->id, 'grade' => $data['grade']]
+            );
+        }
+
         return back()->with('success', 'Оценка за домашнее задание сохранена.');
+    }
+
+    public function returnForRevision(Request $request, HomeworkSubmission $submission): RedirectResponse
+    {
+        $user = $request->user();
+        abort_if($user->role === 'student', 403);
+        $submission->load('homework.subject');
+        if (!$user->isAdmin()) abort_unless($submission->homework->teacher_id === $user->id, 403);
+
+        $data = $request->validate([
+            'teacher_comment' => ['required','string','max:2000'],
+        ]);
+
+        $submission->update([
+            'grade' => null,
+            'teacher_comment' => $data['teacher_comment'],
+            'graded_at' => null,
+            'status' => 'returned',
+        ]);
+
+        $studentUser = User::where('role','student')->where('student_id', $submission->student_id)->first();
+        if ($studentUser) {
+            StudentNotificationService::createForUser(
+                $studentUser,
+                'homework_returned',
+                'Работа возвращена на доработку',
+                $submission->homework->subject->name.': '.$submission->homework->title.'. '.$data['teacher_comment'],
+                route('homeworks.index'),
+                'homework-returned:'.$submission->id.':'.$submission->updated_at?->timestamp,
+                ['submission_id' => $submission->id]
+            );
+        }
+
+        return back()->with('success', 'Работа возвращена студенту на доработку.');
     }
 
     public function download(Request $request, HomeworkFile $file): BinaryFileResponse
