@@ -45,8 +45,9 @@ class JournalController extends Controller
         $students = Student::with('group')->whereIn('group_id', $groupIds)->where('active', true)->get();
         $recordQuery = JournalRecord::whereHas('lesson', fn($q) => $q->whereIn('group_id', $groupIds)->whereIn('subject_id', $subjectIds));
         $avg = (clone $recordQuery)->whereNotNull('grade')->avg('grade');
-        $total = (clone $recordQuery)->count();
-        $absent = (clone $recordQuery)->where('attendance', 'absent')->count();
+        $marked = (clone $recordQuery)->where('attendance', '!=', 'unmarked');
+        $total = (clone $marked)->count();
+        $absent = (clone $marked)->where('attendance', 'absent')->count();
 
         return view('dashboard', [
             'groups' => Group::whereIn('id', $groupIds)->withCount('students')->orderBy('name')->get(),
@@ -107,11 +108,26 @@ class JournalController extends Controller
         $lesson = Lesson::create($data);
         $studentIds = Student::where('group_id', $lesson->group_id)->where('active', true)->pluck('id');
         foreach ($studentIds as $studentId) {
-            JournalRecord::firstOrCreate(['lesson_id' => $lesson->id, 'student_id' => $studentId], ['attendance' => 'present']);
+            JournalRecord::firstOrCreate(['lesson_id' => $lesson->id, 'student_id' => $studentId], ['attendance' => 'unmarked']);
         }
 
         return redirect()->route('journal', ['group_id'=>$lesson->group_id,'subject_id'=>$lesson->subject_id,'period_id'=>$lesson->academic_period_id])
-            ->with('success', 'Занятие добавлено в журнал.');
+            ->with('success', 'Занятие добавлено. Посещаемость пока не отмечена.');
+    }
+
+    public function bulkAttendance(Request $request, Lesson $lesson): JsonResponse
+    {
+        abort_unless($this->canTeach($lesson->group_id, $lesson->subject_id), 403);
+        $data = $request->validate([
+            'attendance' => ['required','in:unmarked,present,absent,late,excused'],
+            'only_unmarked' => ['nullable','boolean'],
+        ]);
+
+        $query = JournalRecord::where('lesson_id', $lesson->id);
+        if ($request->boolean('only_unmarked')) $query->where('attendance', 'unmarked');
+        $updated = $query->update(['attendance' => $data['attendance'], 'updated_at' => now()]);
+
+        return response()->json(['ok' => true, 'updated' => $updated]);
     }
 
     public function updateRecord(Request $request, JournalRecord $record): JsonResponse
@@ -119,7 +135,7 @@ class JournalController extends Controller
         $record->loadMissing('lesson');
         abort_unless($this->canTeach($record->lesson->group_id, $record->lesson->subject_id), 403);
         $data = $request->validate([
-            'attendance' => ['sometimes','required','in:present,absent,late,excused'],
+            'attendance' => ['sometimes','required','in:unmarked,present,absent,late,excused'],
             'grade' => ['sometimes','nullable','integer','between:2,5'],
             'comment' => ['sometimes','nullable','string','max:255'],
             'grade_reason' => ['sometimes','nullable','string','max:255'],
