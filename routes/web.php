@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\HomeworkController;
 use App\Http\Controllers\JournalController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StudentController;
@@ -24,6 +25,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/students/{student}', [StudentController::class, 'show'])->name('students.show');
     Route::get('/reports', [ReportController::class, 'index'])->name('reports');
     Route::get('/reports/csv', [ReportController::class, 'csv'])->name('reports.csv');
+
+    Route::get('/homeworks', [HomeworkController::class, 'index'])->name('homeworks.index');
+    Route::post('/homeworks', [HomeworkController::class, 'store'])->name('homeworks.store');
+    Route::get('/homeworks/{homework}', [HomeworkController::class, 'show'])->name('homeworks.show');
+    Route::post('/homeworks/{homework}/submit', [HomeworkController::class, 'submit'])->name('homeworks.submit');
+    Route::post('/homework-submissions/{submission}/grade', [HomeworkController::class, 'grade'])->name('homeworks.grade');
+    Route::get('/homework-files/{file}/download', [HomeworkController::class, 'download'])->name('homeworks.files.download');
 
     Route::get('/admin/teachers', [AdminController::class, 'teachers'])->name('admin.teachers');
     Route::post('/admin/teachers', [AdminController::class, 'storeTeacher'])->name('admin.teachers.store');
