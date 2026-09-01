@@ -25,6 +25,7 @@
             <div class="navbar-nav me-auto">
                 <a class="nav-link" href="{{ route('dashboard') }}">Сводка</a>
                 <a class="nav-link" href="{{ route('journal') }}">Журнал</a>
+                <a class="nav-link" href="{{ route('reports') }}">Отчеты</a>
                 @if(auth()->user()?->isAdmin())
                     <a class="nav-link" href="{{ route('admin.teachers') }}">Преподаватели</a>
                 @endif
