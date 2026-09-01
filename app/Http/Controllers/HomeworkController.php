@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
 use App\Models\WorkType;
+use App\Services\GradeAuditService;
 use App\Services\StudentNotificationService;
 use App\Services\TeacherNotificationService;
 use Illuminate\Http\RedirectResponse;
@@ -26,7 +27,6 @@ class HomeworkController extends Controller
         $user = $request->user();
         $periods = AcademicPeriod::orderByDesc('active')->orderByDesc('academic_year')->orderBy('semester')->get();
         $period = $request->integer('period_id') ? $periods->firstWhere('id',$request->integer('period_id')) : ($periods->firstWhere('active',true) ?: $periods->first());
-
         if ($user->isStudent()) {
             abort_unless($user->student_id,403);
             StudentNotificationService::syncDeadlineReminders($user);
@@ -36,12 +36,10 @@ class HomeworkController extends Controller
             $homeworks=$query->latest('due_at')->get();
             return view('homeworks.student',compact('student','homeworks','periods','period'));
         }
-
         if($user->isTeacher()) TeacherNotificationService::syncRiskAlerts($user);
         $query=Homework::with(['group','subject','teacher','workType','academicPeriod'])->withCount(['submissions','submissions as graded_count'=>fn($q)=>$q->whereNotNull('grade')]);
         if(!$user->isAdmin()) $query->where('teacher_id',$user->id);
         if($period) $query->where('academic_period_id',$period->id);
-
         $groups=$user->isAdmin()?Group::orderBy('name')->get():$user->groups()->distinct()->orderBy('name')->get();
         $subjects=$user->isAdmin()?Subject::orderBy('name')->get():$user->subjects()->distinct()->orderBy('name')->get();
         $workTypes=WorkType::where('active',true)->orderBy('name')->get();
@@ -89,10 +87,12 @@ class HomeworkController extends Controller
     public function grade(Request $request, HomeworkSubmission $submission): RedirectResponse
     {
         $user=$request->user(); abort_if($user->isStudent(),403); $submission->load('homework.subject'); if(!$user->isAdmin()) abort_unless($submission->homework->teacher_id===$user->id,403);
-        $data=$request->validate(['grade'=>['required','integer','between:2,5'],'teacher_comment'=>['nullable','string','max:2000']]);
-        $submission->update(['grade'=>$data['grade'],'teacher_comment'=>$data['teacher_comment']??null,'graded_at'=>now(),'status'=>'graded']);
+        $data=$request->validate(['grade'=>['required','integer','between:2,5'],'teacher_comment'=>['nullable','string','max:2000'],'reason'=>['nullable','string','max:255']]);
+        $oldGrade=$submission->grade!==null?(int)$submission->grade:null; $newGrade=(int)$data['grade'];
+        $submission->update(['grade'=>$newGrade,'teacher_comment'=>$data['teacher_comment']??null,'graded_at'=>now(),'status'=>'graded']);
+        GradeAuditService::log($submission->student_id,'homework',$submission->id,$oldGrade,$newGrade,$user,$data['reason']??($oldGrade===null?'Первичная проверка ДЗ':'Пересдача / изменение оценки'),$data['teacher_comment']??null);
         $studentUser=User::where('role','student')->where('student_id',$submission->student_id)->first();
-        if($studentUser) StudentNotificationService::createForUser($studentUser,'homework_grade','Домашняя работа проверена',$submission->homework->subject->name.': '.$submission->homework->title.' — оценка '.$data['grade'].($data['teacher_comment']?'. '.$data['teacher_comment']:''),route('homeworks.index'),'homework-grade:'.$submission->id.':'.($submission->updated_at?->timestamp??time()),['submission_id'=>$submission->id,'grade'=>$data['grade']]);
+        if($studentUser) StudentNotificationService::createForUser($studentUser,'homework_grade','Домашняя работа проверена',$submission->homework->subject->name.': '.$submission->homework->title.' — оценка '.$newGrade.($data['teacher_comment']?'. '.$data['teacher_comment']:''),route('homeworks.index'),'homework-grade:'.$submission->id.':'.($submission->updated_at?->timestamp??time()),['submission_id'=>$submission->id,'grade'=>$newGrade]);
         return back()->with('success','Оценка за домашнее задание сохранена.');
     }
 
@@ -100,7 +100,9 @@ class HomeworkController extends Controller
     {
         $user=$request->user(); abort_if($user->isStudent(),403); $submission->load('homework.subject'); if(!$user->isAdmin()) abort_unless($submission->homework->teacher_id===$user->id,403);
         $data=$request->validate(['teacher_comment'=>['required','string','max:2000']]);
+        $oldGrade=$submission->grade!==null?(int)$submission->grade:null;
         $submission->update(['grade'=>null,'teacher_comment'=>$data['teacher_comment'],'graded_at'=>null,'status'=>'returned']);
+        GradeAuditService::log($submission->student_id,'homework',$submission->id,$oldGrade,null,$user,'Работа возвращена на доработку',$data['teacher_comment']);
         $studentUser=User::where('role','student')->where('student_id',$submission->student_id)->first();
         if($studentUser) StudentNotificationService::createForUser($studentUser,'homework_returned','Работа возвращена на доработку',$submission->homework->subject->name.': '.$submission->homework->title.'. '.$data['teacher_comment'],route('homeworks.index'),'homework-returned:'.$submission->id.':'.($submission->updated_at?->timestamp??time()),['submission_id'=>$submission->id]);
         return back()->with('success','Работа возвращена студенту на доработку.');
