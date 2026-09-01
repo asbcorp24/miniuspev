@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AcademicController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AbsenceDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HomeworkController;
 use App\Http\Controllers\JournalController;
@@ -26,6 +27,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/student/notifications', [NotificationController::class, 'index'])->name('student.notifications');
     Route::post('/student/notifications/{notification}/read', [NotificationController::class, 'read'])->name('student.notifications.read');
     Route::post('/student/notifications/read-all', [NotificationController::class, 'readAll'])->name('student.notifications.read-all');
+
+    Route::get('/absence-documents', [AbsenceDocumentController::class, 'index'])->name('absence-documents.index');
+    Route::post('/absence-documents', [AbsenceDocumentController::class, 'store'])->name('absence-documents.store');
+    Route::post('/absence-documents/{document}/review', [AbsenceDocumentController::class, 'review'])->name('absence-documents.review');
+    Route::get('/absence-documents/{document}/download', [AbsenceDocumentController::class, 'download'])->name('absence-documents.download');
 
     Route::get('/teacher/notifications', [TeacherNotificationController::class, 'index'])->name('teacher.notifications');
     Route::post('/teacher/notifications/{notification}/read', [TeacherNotificationController::class, 'read'])->name('teacher.notifications.read');
