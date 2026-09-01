@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\JournalController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StudentController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/subjects', [JournalController::class, 'storeSubject'])->name('subjects.store');
 
     Route::get('/students/{student}', [StudentController::class, 'show'])->name('students.show');
+    Route::get('/reports', [ReportController::class, 'index'])->name('reports');
+    Route::get('/reports/csv', [ReportController::class, 'csv'])->name('reports.csv');
 
     Route::get('/admin/teachers', [AdminController::class, 'teachers'])->name('admin.teachers');
     Route::post('/admin/teachers', [AdminController::class, 'storeTeacher'])->name('admin.teachers.store');
