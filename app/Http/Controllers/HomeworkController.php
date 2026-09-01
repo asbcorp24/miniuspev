@@ -10,6 +10,7 @@ use App\Models\Group;
 use App\Models\Subject;
 use App\Models\User;
 use App\Services\StudentNotificationService;
+use App\Services\TeacherNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
@@ -31,6 +32,10 @@ class HomeworkController extends Controller
                 ->latest('due_at')
                 ->get();
             return view('homeworks.student', compact('student','homeworks'));
+        }
+
+        if ($user->isTeacher()) {
+            TeacherNotificationService::syncRiskAlerts($user);
         }
 
         $query = Homework::with(['group','subject','teacher'])->withCount(['submissions','submissions as graded_count' => fn($q) => $q->whereNotNull('grade')]);
@@ -103,6 +108,11 @@ class HomeworkController extends Controller
             'files.*' => ['file','mimes:jpg,jpeg,png,webp,pdf','max:10240'],
         ]);
 
+        $existing = HomeworkSubmission::where('homework_id', $homework->id)
+            ->where('student_id', $student->id)
+            ->first();
+        $isResubmission = $existing !== null;
+
         $submission = HomeworkSubmission::updateOrCreate(
             ['homework_id' => $homework->id, 'student_id' => $student->id],
             ['student_comment' => $data['student_comment'] ?? null, 'submitted_at' => now(), 'status' => 'submitted', 'grade' => null, 'graded_at' => null]
@@ -117,6 +127,20 @@ class HomeworkController extends Controller
                 'mime_type' => $file->getMimeType(),
                 'size' => $file->getSize(),
             ]);
+        }
+
+        $homework->load(['teacher','subject']);
+        if ($homework->teacher?->isTeacher()) {
+            $late = $homework->due_at && now()->gt($homework->due_at);
+            TeacherNotificationService::createForTeacher(
+                $homework->teacher,
+                $isResubmission ? 'homework_resubmitted' : 'homework_submitted',
+                $isResubmission ? 'Домашняя работа пересдана' : 'Домашняя работа сдана',
+                $student->full_name.' '.($isResubmission ? 'пересдал' : 'сдал').' «'.$homework->title.'» по дисциплине '.$homework->subject->name.($late ? ' после срока.' : '.'),
+                route('homeworks.show', $homework),
+                'teacher-submission:'.$submission->id.':'.($submission->updated_at?->timestamp ?? time()),
+                ['submission_id' => $submission->id, 'student_id' => $student->id, 'late' => $late]
+            );
         }
 
         return back()->with('success', 'Домашнее задание отправлено преподавателю.');
