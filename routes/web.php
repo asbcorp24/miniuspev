@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcademicController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HomeworkController;
@@ -29,6 +30,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/teacher/notifications', [TeacherNotificationController::class, 'index'])->name('teacher.notifications');
     Route::post('/teacher/notifications/{notification}/read', [TeacherNotificationController::class, 'read'])->name('teacher.notifications.read');
     Route::post('/teacher/notifications/read-all', [TeacherNotificationController::class, 'readAll'])->name('teacher.notifications.readAll');
+
+    Route::get('/academic/settings', [AcademicController::class, 'settings'])->name('academic.settings');
+    Route::post('/academic/periods', [AcademicController::class, 'storePeriod'])->name('academic.periods.store');
+    Route::post('/academic/periods/{period}/activate', [AcademicController::class, 'activatePeriod'])->name('academic.periods.activate');
+    Route::post('/academic/work-types', [AcademicController::class, 'storeWorkType'])->name('academic.work-types.store');
+    Route::get('/academic/finals', [AcademicController::class, 'finals'])->name('academic.finals');
+    Route::post('/academic/finals/{student}', [AcademicController::class, 'setFinal'])->name('academic.finals.set');
 
     Route::get('/journal', [JournalController::class, 'journal'])->name('journal');
     Route::post('/lessons', [JournalController::class, 'createLesson'])->name('lessons.store');
