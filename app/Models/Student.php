@@ -31,7 +31,7 @@ class Student extends Model
 
     public function attendancePercent(?int $subjectId = null): ?float
     {
-        $query = $this->records();
+        $query = $this->records()->where('attendance', '!=', 'unmarked');
         if ($subjectId) {
             $query->whereHas('lesson', fn ($q) => $q->where('subject_id', $subjectId));
         }
