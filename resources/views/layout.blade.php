@@ -38,11 +38,13 @@
                 @if(auth()->check() && auth()->user()->isStudent())
                     <a class="nav-link" href="{{ route('student.dashboard') }}">Мой кабинет</a>
                     <a class="nav-link" href="{{ route('homeworks.index') }}">Домашние задания</a>
+                    <a class="nav-link" href="{{ route('absence-documents.index') }}">Справки</a>
                     <a class="nav-link" href="{{ route('student.notifications') }}">Уведомления @if($studentUnread)<span class="badge rounded-pill text-bg-danger">{{ $studentUnread }}</span>@endif</a>
                 @else
                     <a class="nav-link" href="{{ route('dashboard') }}">Сводка</a>
                     <a class="nav-link" href="{{ route('journal') }}">Журнал</a>
                     <a class="nav-link" href="{{ route('homeworks.index') }}">Домашние задания</a>
+                    <a class="nav-link" href="{{ route('absence-documents.index') }}">Справки</a>
                     <a class="nav-link" href="{{ route('academic.finals') }}">Итоги</a>
                     <a class="nav-link" href="{{ route('reports') }}">Отчеты</a>
                     @if(auth()->user()?->isTeacher())
