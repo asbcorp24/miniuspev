@@ -5,7 +5,9 @@ namespace Database\Seeders;
 use App\Models\Group;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -23,7 +25,21 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        Subject::firstOrCreate(['name' => 'Введение в специальность'], ['code' => 'VS']);
+        $subject1 = Subject::firstOrCreate(['name' => 'Введение в специальность'], ['code' => 'VS']);
         Subject::firstOrCreate(['name' => 'Компьютерные сети'], ['code' => 'NET']);
+
+        User::updateOrCreate(
+            ['email' => 'admin@example.com'],
+            ['name' => 'Администратор', 'password' => Hash::make('password'), 'role' => 'admin']
+        );
+
+        $teacher = User::updateOrCreate(
+            ['email' => 'teacher@example.com'],
+            ['name' => 'Иванов Иван Иванович', 'password' => Hash::make('password'), 'role' => 'teacher']
+        );
+
+        $teacher->groups()->syncWithoutDetaching([
+            $group->id => ['subject_id' => $subject1->id]
+        ]);
     }
 }
