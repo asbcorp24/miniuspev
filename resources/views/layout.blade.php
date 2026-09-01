@@ -19,11 +19,12 @@
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid px-4">
-        <a class="navbar-brand" href="{{ auth()->check() && auth()->user()->isStudent() ? route('homeworks.index') : route('dashboard') }}">MiniUspev</a>
+        <a class="navbar-brand" href="{{ auth()->check() && auth()->user()->isStudent() ? route('student.dashboard') : route('dashboard') }}">MiniUspev</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
         <div class="collapse navbar-collapse" id="mainNav">
             <div class="navbar-nav me-auto">
                 @if(auth()->check() && auth()->user()->isStudent())
+                    <a class="nav-link" href="{{ route('student.dashboard') }}">Мой кабинет</a>
                     <a class="nav-link" href="{{ route('homeworks.index') }}">Домашние задания</a>
                 @else
                     <a class="nav-link" href="{{ route('dashboard') }}">Сводка</a>
