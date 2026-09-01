@@ -39,8 +39,9 @@ class StudentDashboardController extends Controller
         }
         $submissions = $submissionsQuery->orderByDesc('submitted_at')->get();
 
-        $totalAttendance = $records->count();
-        $presentAttendance = $records->whereIn('attendance', ['present','late'])->count();
+        $markedRecords = $records->where('attendance', '!=', 'unmarked');
+        $totalAttendance = $markedRecords->count();
+        $presentAttendance = $markedRecords->whereIn('attendance', ['present','late'])->count();
 
         $upcomingHomeworksQuery = Homework::with(['subject','workType'])
             ->where('group_id', $student->group_id)
@@ -70,8 +71,9 @@ class StudentDashboardController extends Controller
             $subjectSubmissions = $submissions->filter(fn ($submission) => optional($submission->homework)->subject_id === $subject->id);
             $journalGrades = $subjectRecords->whereNotNull('grade')->pluck('grade');
             $homeworkGrades = $subjectSubmissions->whereNotNull('grade')->pluck('grade');
-            $total = $subjectRecords->count();
-            $present = $subjectRecords->whereIn('attendance', ['present','late'])->count();
+            $marked = $subjectRecords->where('attendance', '!=', 'unmarked');
+            $total = $marked->count();
+            $present = $marked->whereIn('attendance', ['present','late'])->count();
             $weighted = $period ? GradeCalculationService::weightedAverage($student->id, $subject->id, $period->id) : null;
             $final = $finals->get($subject->id);
 
