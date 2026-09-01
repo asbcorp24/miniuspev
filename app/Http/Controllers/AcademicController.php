@@ -9,6 +9,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
 use App\Models\WorkType;
+use App\Services\GradeAuditService;
 use App\Services\GradeCalculationService;
 use App\Services\StudentNotificationService;
 use Illuminate\Http\RedirectResponse;
@@ -17,10 +18,7 @@ use Illuminate\View\View;
 
 class AcademicController extends Controller
 {
-    private function ensureStaff(): void
-    {
-        abort_if(auth()->user()->isStudent(), 403);
-    }
+    private function ensureStaff(): void { abort_if(auth()->user()->isStudent(), 403); }
 
     public function settings(): View
     {
@@ -35,11 +33,8 @@ class AcademicController extends Controller
     {
         abort_unless(auth()->user()->isAdmin(), 403);
         $data = $request->validate([
-            'academic_year' => ['required','string','max:20'],
-            'semester' => ['required','integer','between:1,2'],
-            'starts_at' => ['nullable','date'],
-            'ends_at' => ['nullable','date','after_or_equal:starts_at'],
-            'active' => ['nullable','boolean'],
+            'academic_year' => ['required','string','max:20'], 'semester' => ['required','integer','between:1,2'],
+            'starts_at' => ['nullable','date'], 'ends_at' => ['nullable','date','after_or_equal:starts_at'], 'active' => ['nullable','boolean'],
         ]);
         $data['active'] = $request->boolean('active');
         if ($data['active']) AcademicPeriod::query()->update(['active' => false]);
@@ -59,8 +54,7 @@ class AcademicController extends Controller
     {
         abort_unless(auth()->user()->isAdmin(), 403);
         WorkType::create($request->validate([
-            'name' => ['required','string','max:100'],
-            'code' => ['required','string','max:50','unique:work_types,code'],
+            'name' => ['required','string','max:100'], 'code' => ['required','string','max:50','unique:work_types,code'],
             'default_weight' => ['required','numeric','min:0.1','max:10'],
         ]));
         return back()->with('success','Тип работы добавлен.');
@@ -77,7 +71,6 @@ class AcademicController extends Controller
         $groupId = (int)($request->integer('group_id') ?: optional($groups->first())->id);
         $subjectId = (int)($request->integer('subject_id') ?: optional($subjects->first())->id);
         if (!$user->isAdmin() && $groupId && $subjectId) abort_unless($user->groups()->where('groups.id',$groupId)->wherePivot('subject_id',$subjectId)->exists(), 403);
-
         $students = $groupId ? Student::where('group_id',$groupId)->where('active',true)->orderBy('last_name')->orderBy('first_name')->get() : collect();
         $rows = $students->map(function(Student $student) use ($subjectId,$periodId) {
             $calculated = ($subjectId && $periodId) ? GradeCalculationService::weightedAverage($student->id,$subjectId,$periodId) : null;
@@ -91,35 +84,28 @@ class AcademicController extends Controller
     {
         $this->ensureStaff();
         $data = $request->validate([
-            'subject_id' => ['required','exists:subjects,id'],
-            'academic_period_id' => ['required','exists:academic_periods,id'],
-            'final_grade' => ['nullable','integer','between:2,5'],
-            'comment' => ['nullable','string','max:1000'],
+            'subject_id' => ['required','exists:subjects,id'], 'academic_period_id' => ['required','exists:academic_periods,id'],
+            'final_grade' => ['nullable','integer','between:2,5'], 'comment' => ['nullable','string','max:1000'],
+            'reason' => ['nullable','string','max:255'],
         ]);
         $user = auth()->user();
         if (!$user->isAdmin()) abort_unless($user->groups()->where('groups.id',$student->group_id)->wherePivot('subject_id',$data['subject_id'])->exists(),403);
 
+        $existing = FinalGrade::where('student_id',$student->id)->where('subject_id',$data['subject_id'])->where('academic_period_id',$data['academic_period_id'])->first();
+        $oldGrade = $existing?->final_grade !== null ? (int)$existing->final_grade : null;
+        $newGrade = isset($data['final_grade']) ? (int)$data['final_grade'] : null;
         $calculated = GradeCalculationService::weightedAverage($student->id,(int)$data['subject_id'],(int)$data['academic_period_id']);
         $final = FinalGrade::updateOrCreate(
             ['student_id'=>$student->id,'subject_id'=>$data['subject_id'],'academic_period_id'=>$data['academic_period_id']],
             ['calculated_grade'=>$calculated,'final_grade'=>$data['final_grade'] ?? null,'comment'=>$data['comment'] ?? null,'set_by'=>$user->id]
         );
 
+        GradeAuditService::log($student->id,'final',$final->id,$oldGrade,$newGrade,$user,$data['reason'] ?? ($oldGrade===null?'Первичная итоговая оценка':'Корректировка итоговой оценки'),$data['comment'] ?? null);
+
         if ($final->final_grade) {
             $studentUser = User::where('role','student')->where('student_id',$student->id)->first();
-            $subject = Subject::find($data['subject_id']);
-            $period = AcademicPeriod::find($data['academic_period_id']);
-            if ($studentUser) {
-                StudentNotificationService::createForUser(
-                    $studentUser,
-                    'final_grade',
-                    'Выставлена итоговая оценка',
-                    ($subject?->name ?? 'Дисциплина').' · '.($period?->label ?? 'семестр').' — итоговая оценка '.$final->final_grade.($final->comment ? '. '.$final->comment : ''),
-                    route('student.dashboard',['period_id'=>$data['academic_period_id']]),
-                    'final-grade:'.$final->id.':'.($final->updated_at?->timestamp ?? time()),
-                    ['final_grade_id'=>$final->id,'grade'=>$final->final_grade]
-                );
-            }
+            $subject = Subject::find($data['subject_id']); $period = AcademicPeriod::find($data['academic_period_id']);
+            if ($studentUser) StudentNotificationService::createForUser($studentUser,'final_grade','Выставлена итоговая оценка',($subject?->name ?? 'Дисциплина').' · '.($period?->label ?? 'семестр').' — итоговая оценка '.$final->final_grade.($final->comment ? '. '.$final->comment : ''),route('student.dashboard',['period_id'=>$data['academic_period_id']]),'final-grade:'.$final->id.':'.($final->updated_at?->timestamp ?? time()),['final_grade_id'=>$final->id,'grade'=>$final->final_grade]);
         }
         return back()->with('success','Итоговая оценка сохранена.');
     }
