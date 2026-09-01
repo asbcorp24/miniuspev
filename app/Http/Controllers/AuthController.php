@@ -27,7 +27,7 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
         $user = $request->user();
-        return redirect()->intended($user->isStudent() ? route('homeworks.index') : route('dashboard'));
+        return redirect()->intended($user->isStudent() ? route('student.dashboard') : route('dashboard'));
     }
 
     public function logout(Request $request): RedirectResponse
