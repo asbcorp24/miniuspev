@@ -9,6 +9,7 @@ use App\Models\Lesson;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\WorkType;
+use App\Services\GradeAuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -121,8 +122,29 @@ class JournalController extends Controller
             'attendance' => ['sometimes','required','in:present,absent,late,excused'],
             'grade' => ['sometimes','nullable','integer','between:2,5'],
             'comment' => ['sometimes','nullable','string','max:255'],
+            'grade_reason' => ['sometimes','nullable','string','max:255'],
         ]);
+
+        $oldGrade = $record->grade !== null ? (int)$record->grade : null;
+        $newGrade = array_key_exists('grade', $data) && $data['grade'] !== null ? (int)$data['grade'] : (array_key_exists('grade', $data) ? null : $oldGrade);
+        $reason = $data['grade_reason'] ?? null;
+        unset($data['grade_reason']);
+
         $record->update($data);
+
+        if ($oldGrade !== $newGrade) {
+            GradeAuditService::log(
+                $record->student_id,
+                'journal',
+                $record->id,
+                $oldGrade,
+                $newGrade,
+                $request->user(),
+                $reason ?: ($oldGrade === null ? 'Первичная оценка' : 'Изменение оценки'),
+                $record->comment
+            );
+        }
+
         $record->load('student');
         return response()->json([
             'ok'=>true,'record'=>$record,
