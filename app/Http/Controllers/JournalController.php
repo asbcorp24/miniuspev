@@ -14,29 +14,57 @@ use Illuminate\View\View;
 
 class JournalController extends Controller
 {
+    private function allowedGroupIds(): array
+    {
+        $user = auth()->user();
+        if ($user->isAdmin()) return Group::pluck('id')->all();
+        return $user->groups()->pluck('groups.id')->unique()->values()->all();
+    }
+
+    private function allowedSubjectIds(): array
+    {
+        $user = auth()->user();
+        if ($user->isAdmin()) return Subject::pluck('id')->all();
+        return $user->subjects()->pluck('subjects.id')->unique()->values()->all();
+    }
+
+    private function canTeach(int $groupId, int $subjectId): bool
+    {
+        $user = auth()->user();
+        if ($user->isAdmin()) return true;
+        return $user->groups()->where('groups.id', $groupId)->wherePivot('subject_id', $subjectId)->exists();
+    }
+
     public function dashboard(): View
     {
-        $students = Student::with('group')->where('active', true)->get();
-        $avg = JournalRecord::whereNotNull('grade')->avg('grade');
-        $total = JournalRecord::count();
-        $absent = JournalRecord::where('attendance', 'absent')->count();
+        $groupIds = $this->allowedGroupIds();
+        $subjectIds = $this->allowedSubjectIds();
+        $students = Student::with('group')->whereIn('group_id', $groupIds)->where('active', true)->get();
+        $recordQuery = JournalRecord::whereHas('lesson', fn($q) => $q->whereIn('group_id', $groupIds)->whereIn('subject_id', $subjectIds));
+        $avg = (clone $recordQuery)->whereNotNull('grade')->avg('grade');
+        $total = (clone $recordQuery)->count();
+        $absent = (clone $recordQuery)->where('attendance', 'absent')->count();
 
         return view('dashboard', [
-            'groups' => Group::withCount('students')->orderBy('name')->get(),
-            'subjects' => Subject::orderBy('name')->get(),
+            'groups' => Group::whereIn('id', $groupIds)->withCount('students')->orderBy('name')->get(),
+            'subjects' => Subject::whereIn('id', $subjectIds)->orderBy('name')->get(),
             'studentsCount' => $students->count(),
             'averageGrade' => $avg ? round((float) $avg, 2) : null,
             'absencePercent' => $total ? round($absent * 100 / $total, 1) : 0,
-            'recentLessons' => Lesson::with(['group', 'subject'])->latest('lesson_date')->limit(10)->get(),
+            'recentLessons' => Lesson::with(['group', 'subject'])->whereIn('group_id', $groupIds)->whereIn('subject_id', $subjectIds)->latest('lesson_date')->limit(10)->get(),
         ]);
     }
 
     public function journal(Request $request): View
     {
-        $groups = Group::orderBy('name')->get();
-        $subjects = Subject::orderBy('name')->get();
+        $groups = Group::whereIn('id', $this->allowedGroupIds())->orderBy('name')->get();
+        $subjects = Subject::whereIn('id', $this->allowedSubjectIds())->orderBy('name')->get();
         $groupId = (int) ($request->integer('group_id') ?: optional($groups->first())->id);
         $subjectId = (int) ($request->integer('subject_id') ?: optional($subjects->first())->id);
+
+        if ($groupId && $subjectId && !$this->canTeach($groupId, $subjectId)) {
+            $subjectId = 0;
+        }
 
         $group = $groupId ? Group::with('students')->find($groupId) : null;
         $subject = $subjectId ? Subject::find($subjectId) : null;
@@ -61,6 +89,7 @@ class JournalController extends Controller
             'lesson_date' => ['required', 'date'],
             'topic' => ['nullable', 'string', 'max:255'],
         ]);
+        abort_unless($this->canTeach((int)$data['group_id'], (int)$data['subject_id']), 403);
 
         $lesson = Lesson::create($data);
         $studentIds = Student::where('group_id', $lesson->group_id)->where('active', true)->pluck('id');
@@ -77,6 +106,9 @@ class JournalController extends Controller
 
     public function updateRecord(Request $request, JournalRecord $record): JsonResponse
     {
+        $record->loadMissing('lesson');
+        abort_unless($this->canTeach($record->lesson->group_id, $record->lesson->subject_id), 403);
+
         $data = $request->validate([
             'attendance' => ['sometimes', 'required', 'in:present,absent,late,excused'],
             'grade' => ['sometimes', 'nullable', 'integer', 'between:2,5'],
@@ -96,6 +128,7 @@ class JournalController extends Controller
 
     public function storeGroup(Request $request): RedirectResponse
     {
+        abort_unless(auth()->user()->isAdmin(), 403);
         Group::create($request->validate([
             'name' => ['required', 'string', 'max:100', 'unique:groups,name'],
             'course' => ['nullable', 'integer', 'between:1,6'],
@@ -106,6 +139,7 @@ class JournalController extends Controller
 
     public function storeStudent(Request $request): RedirectResponse
     {
+        abort_unless(auth()->user()->isAdmin(), 403);
         Student::create($request->validate([
             'group_id' => ['required', 'exists:groups,id'],
             'last_name' => ['required', 'string', 'max:100'],
@@ -118,6 +152,7 @@ class JournalController extends Controller
 
     public function storeSubject(Request $request): RedirectResponse
     {
+        abort_unless(auth()->user()->isAdmin(), 403);
         Subject::create($request->validate([
             'name' => ['required', 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:50', 'unique:subjects,code'],
