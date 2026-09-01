@@ -8,6 +8,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentDashboardController;
+use App\Http\Controllers\TeacherNotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -24,6 +25,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/student/notifications', [NotificationController::class, 'index'])->name('student.notifications');
     Route::post('/student/notifications/{notification}/read', [NotificationController::class, 'read'])->name('student.notifications.read');
     Route::post('/student/notifications/read-all', [NotificationController::class, 'readAll'])->name('student.notifications.read-all');
+
+    Route::get('/teacher/notifications', [TeacherNotificationController::class, 'index'])->name('teacher.notifications');
+    Route::post('/teacher/notifications/{notification}/read', [TeacherNotificationController::class, 'read'])->name('teacher.notifications.read');
+    Route::post('/teacher/notifications/read-all', [TeacherNotificationController::class, 'readAll'])->name('teacher.notifications.readAll');
 
     Route::get('/journal', [JournalController::class, 'journal'])->name('journal');
     Route::post('/lessons', [JournalController::class, 'createLesson'])->name('lessons.store');
