@@ -84,4 +84,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/admin/students/{student}/account', [AdminController::class, 'createStudentAccount'])->name('admin.students.account');
     Route::post('/admin/student-accounts/{user}/password', [AdminController::class, 'resetStudentPassword'])->name('admin.students.password');
     Route::post('/admin/students/accounts/bulk', [AdminController::class, 'bulkCreateStudentAccounts'])->name('admin.students.bulk');
+    Route::post('/admin/student-accounts/{user}/promote-leader', [AdminController::class, 'promoteGroupLeader'])->name('admin.students.promote-leader');
+    Route::post('/admin/student-accounts/{user}/demote-leader', [AdminController::class, 'demoteGroupLeader'])->name('admin.students.demote-leader');
 });
