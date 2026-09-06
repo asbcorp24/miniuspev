@@ -31,7 +31,7 @@ class StudentNotificationService
 
     public static function createForGroup(int $groupId, string $type, string $title, ?string $message = null, ?string $url = null, ?string $uniquePrefix = null, array $data = []): void
     {
-        User::where('role', 'student')
+        User::whereIn('role', ['student','group_leader'])
             ->whereHas('student', fn($q) => $q->where('group_id', $groupId))
             ->get()
             ->each(function (User $user) use ($type, $title, $message, $url, $uniquePrefix, $data) {
