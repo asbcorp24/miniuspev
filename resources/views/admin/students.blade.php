@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
         <h1 class="h3 mb-1">Доступ студентов</h1>
-        <div class="text-muted">Создание логинов, массовая выдача доступа и смена паролей</div>
+        <div class="text-muted">Создание логинов, автогенерация паролей и массовая выдача доступа</div>
     </div>
     <form method="GET" class="d-flex gap-2">
         <select class="form-select" name="group_id" onchange="this.form.submit()">
@@ -18,16 +18,20 @@
 @if(session('generated_accounts'))
 <div class="alert alert-warning border-warning shadow-sm">
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <strong>Сохраните временные пароли сейчас</strong>
+        <strong>Сохраните выданные логины и пароли</strong>
         <button class="btn btn-sm btn-outline-dark" type="button" onclick="copyAccounts()">Копировать всё</button>
     </div>
-    <div class="small mb-2">После закрытия страницы пароли в открытом виде больше не показываются.</div>
+    <div class="small mb-2">Пароли показываются в открытом виде только сразу после генерации или смены.</div>
     <div class="table-responsive">
         <table class="table table-sm table-bordered bg-white mb-0" id="generatedAccounts">
             <thead><tr><th>Студент</th><th>Логин</th><th>Временный пароль</th></tr></thead>
             <tbody>
             @foreach(session('generated_accounts') as $item)
-                <tr><td>{{ $item['name'] }}</td><td class="account-email">{{ $item['email'] }}</td><td class="account-password"><code>{{ $item['password'] }}</code></td></tr>
+                <tr>
+                    <td>{{ $item['name'] }}</td>
+                    <td class="account-email"><code>{{ $item['email'] }}</code></td>
+                    <td class="account-password"><code>{{ $item['password'] }}</code></td>
+                </tr>
             @endforeach
             </tbody>
         </table>
@@ -38,13 +42,13 @@
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div>
-            <strong>Массовое создание</strong>
-            <div class="text-muted small">Будут созданы аккаунты только для активных студентов, у которых доступа еще нет.</div>
+            <strong>Массовая автогенерация</strong>
+            <div class="text-muted small">Для всех активных студентов выбранной группы без доступа будут автоматически созданы логин и пароль.</div>
         </div>
-        <form method="POST" action="{{ route('admin.students.bulk') }}" onsubmit="return confirm('Создать учетные записи для всех студентов группы без доступа?')">
+        <form method="POST" action="{{ route('admin.students.bulk') }}" onsubmit="return confirm('Автоматически создать логины и пароли для всех студентов группы без доступа?')">
             @csrf
             <input type="hidden" name="group_id" value="{{ $groupId }}">
-            <button class="btn btn-primary">Создать доступ всей группе</button>
+            <button class="btn btn-primary">Сгенерировать доступ всей группе</button>
         </form>
     </div>
 </div>
@@ -61,7 +65,7 @@
                     <th>Студент</th>
                     <th>№ студента</th>
                     <th>Статус доступа</th>
-                    <th style="min-width:420px">Управление</th>
+                    <th style="min-width:560px">Управление</th>
                 </tr>
             </thead>
             <tbody>
@@ -76,25 +80,38 @@
                     <td>
                         @if($account)
                             <span class="badge text-bg-success">Есть доступ</span>
-                            <div class="small mt-1">{{ $account->email }}</div>
+                            <div class="small mt-1"><code>{{ $account->email }}</code></div>
                         @else
                             <span class="badge text-bg-secondary">Нет доступа</span>
                         @endif
                     </td>
                     <td>
                         @if(!$account)
-                        <form method="POST" action="{{ route('admin.students.account',$student) }}" class="row g-2">
-                            @csrf
-                            <div class="col-md-7"><input class="form-control form-control-sm" type="email" name="email" placeholder="student@example.com" required></div>
-                            <div class="col-md-3"><input class="form-control form-control-sm" type="text" name="password" placeholder="Пароль" minlength="6" required></div>
-                            <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Создать</button></div>
-                        </form>
+                            <div class="mb-2">
+                                <form method="POST" action="{{ route('admin.students.account',$student) }}" onsubmit="return confirm('Сгенерировать логин и пароль для этого студента?')">
+                                    @csrf
+                                    <button class="btn btn-sm btn-success">Сгенерировать логин и пароль</button>
+                                </form>
+                            </div>
+                            <form method="POST" action="{{ route('admin.students.account',$student) }}" class="row g-2">
+                                @csrf
+                                <div class="col-md-7"><input class="form-control form-control-sm" type="email" name="email" placeholder="Логин / email вручную"></div>
+                                <div class="col-md-3"><input class="form-control form-control-sm" type="text" name="password" placeholder="Пароль вручную" minlength="6"></div>
+                                <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Создать</button></div>
+                            </form>
+                            <div class="form-text">Если оставить одно из полей пустым, оно будет сгенерировано автоматически.</div>
                         @else
-                        <form method="POST" action="{{ route('admin.students.password',$account) }}" class="row g-2" onsubmit="return confirm('Изменить пароль этого студента?')">
-                            @csrf
-                            <div class="col-md-8"><input class="form-control form-control-sm" type="text" name="password" placeholder="Новый пароль" minlength="6" required></div>
-                            <div class="col-md-4"><button class="btn btn-sm btn-outline-warning w-100">Сменить пароль</button></div>
-                        </form>
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                <form method="POST" action="{{ route('admin.students.password',$account) }}" onsubmit="return confirm('Сгенерировать новый пароль? Старый пароль перестанет работать.')">
+                                    @csrf
+                                    <button class="btn btn-sm btn-warning">Сгенерировать новый пароль</button>
+                                </form>
+                            </div>
+                            <form method="POST" action="{{ route('admin.students.password',$account) }}" class="row g-2" onsubmit="return confirm('Изменить пароль этого студента?')">
+                                @csrf
+                                <div class="col-md-8"><input class="form-control form-control-sm" type="text" name="password" placeholder="Новый пароль вручную" minlength="6"></div>
+                                <div class="col-md-4"><button class="btn btn-sm btn-outline-warning w-100">Сменить пароль</button></div>
+                            </form>
                         @endif
                     </td>
                 </tr>
