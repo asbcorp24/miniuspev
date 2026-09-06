@@ -15,18 +15,16 @@
             <div class="mb-3"><label class="form-label">Название</label><input name="title" class="form-control" required></div>
             <div class="mb-3"><label class="form-label">Описание</label><textarea name="description" class="form-control" rows="4"></textarea></div>
             <div class="mb-3"><label class="form-label">Срок сдачи</label><input type="datetime-local" name="due_at" class="form-control"></div>
-
             <hr><h6>Материалы к заданию</h6>
             <div class="mb-3"><label class="form-label">Документы и изображения</label><input type="file" name="materials[]" class="form-control" multiple><div class="form-text">До 10 файлов по 20 МБ: PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, JPG/PNG/WEBP, TXT, ZIP.</div></div>
             <div class="mb-3"><label class="form-label">Ссылки на материалы</label><textarea name="links" class="form-control" rows="3" placeholder="https://example.com/material\nhttps://docs.example.com/file"></textarea><div class="form-text">Каждая ссылка с новой строки.</div></div>
             <div class="mb-3"><label class="form-label">Ссылки на видео</label><textarea name="video_links" class="form-control" rows="3" placeholder="https://youtube.com/...\nhttps://rutube.ru/..."></textarea><div class="form-text">YouTube, RuTube, VK Видео и другие ссылки — по одной в строке.</div></div>
-
             <button class="btn btn-primary w-100">Создать задание</button>
         </form>
     </div></div></div>
     <div class="col-xl-8"><div class="card stat-card"><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0">
-        <thead><tr><th class="ps-3">Задание</th><th>Группа</th><th>Предмет</th><th>Материалы</th><th>Тип / вес</th><th>Дедлайн</th><th>Сдано</th><th>Проверено</th><th></th></tr></thead><tbody>
-        @forelse($homeworks as $h)<tr><td class="ps-3"><strong>{{ $h->title }}</strong></td><td>{{ $h->group->name }}</td><td>{{ $h->subject->name }}</td><td><span class="badge text-bg-light border">{{ $h->materials->count() }}</span></td><td>{{ $h->workType?->name ?? 'ДЗ' }} <span class="badge text-bg-light border">×{{ $h->grade_weight }}</span></td><td>{{ $h->due_at?$h->due_at->format('d.m.Y H:i'):'—' }}</td><td>{{ $h->submissions_count }}</td><td>{{ $h->graded_count }}</td><td><a class="btn btn-sm btn-outline-primary" href="{{ route('homeworks.show',$h) }}">Открыть</a></td></tr>
+        <thead><tr><th class="ps-3">Задание</th><th>Группа</th><th>Предмет</th><th>Материалы</th><th>Тип / вес</th><th>Дедлайн</th><th>Сдано</th><th>Проверено</th><th style="min-width:220px">Действия</th></tr></thead><tbody>
+        @forelse($homeworks as $h)<tr><td class="ps-3"><strong>{{ $h->title }}</strong></td><td>{{ $h->group->name }}</td><td>{{ $h->subject->name }}</td><td><span class="badge text-bg-light border">{{ $h->materials->count() }}</span></td><td>{{ $h->workType?->name ?? 'ДЗ' }} <span class="badge text-bg-light border">×{{ $h->grade_weight }}</span></td><td>{{ $h->due_at?$h->due_at->format('d.m.Y H:i'):'—' }}</td><td>{{ $h->submissions_count }}</td><td>{{ $h->graded_count }}</td><td><div class="d-flex flex-wrap gap-1"><a class="btn btn-sm btn-outline-primary" href="{{ route('homeworks.show',$h) }}">Открыть</a><a class="btn btn-sm btn-outline-secondary" href="{{ route('homeworks.edit',$h) }}">Редактировать</a><form method="POST" action="{{ route('homeworks.destroy',$h) }}" onsubmit="return confirm('Удалить домашнее задание? Будут удалены материалы и ответы студентов.')">@csrf @method('DELETE')<button class="btn btn-sm btn-outline-danger">Удалить</button></form></div></td></tr>
         @empty<tr><td colspan="9" class="text-center text-muted py-5">Домашних заданий за выбранный семестр пока нет.</td></tr>@endforelse
         </tbody></table></div></div></div></div>
 </div>
