@@ -18,4 +18,5 @@ class Homework extends Model
     public function workType(): BelongsTo { return $this->belongsTo(WorkType::class); }
     public function teacher(): BelongsTo { return $this->belongsTo(User::class, 'teacher_id'); }
     public function submissions(): HasMany { return $this->hasMany(HomeworkSubmission::class); }
+    public function materials(): HasMany { return $this->hasMany(HomeworkMaterial::class); }
 }
