@@ -64,10 +64,14 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/homeworks', [HomeworkController::class, 'index'])->name('homeworks.index');
     Route::post('/homeworks', [HomeworkController::class, 'store'])->name('homeworks.store');
+    Route::get('/homeworks/{homework}/edit', [HomeworkController::class, 'edit'])->name('homeworks.edit');
+    Route::put('/homeworks/{homework}', [HomeworkController::class, 'update'])->name('homeworks.update');
+    Route::delete('/homeworks/{homework}', [HomeworkController::class, 'destroy'])->name('homeworks.destroy');
     Route::get('/homeworks/{homework}', [HomeworkController::class, 'show'])->name('homeworks.show');
     Route::post('/homeworks/{homework}/submit', [HomeworkController::class, 'submit'])->name('homeworks.submit');
     Route::get('/homework-materials/{material}/view', [HomeworkController::class, 'materialView'])->name('homeworks.materials.view');
     Route::get('/homework-materials/{material}/download', [HomeworkController::class, 'materialDownload'])->name('homeworks.materials.download');
+    Route::delete('/homework-materials/{material}', [HomeworkController::class, 'destroyMaterial'])->name('homeworks.materials.destroy');
     Route::post('/homework-submissions/{submission}/grade', [HomeworkController::class, 'grade'])->name('homeworks.grade');
     Route::post('/homework-submissions/{submission}/return', [HomeworkController::class, 'returnForRevision'])->name('homeworks.return');
     Route::get('/homework-files/{file}/download', [HomeworkController::class, 'download'])->name('homeworks.files.download');
