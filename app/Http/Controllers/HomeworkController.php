@@ -184,7 +184,7 @@ class HomeworkController extends Controller
         $oldGrade=$submission->grade!==null?(int)$submission->grade:null; $newGrade=(int)$data['grade'];
         $submission->update(['grade'=>$newGrade,'teacher_comment'=>$data['teacher_comment']??null,'graded_at'=>now(),'status'=>'graded']);
         GradeAuditService::log($submission->student_id,'homework',$submission->id,$oldGrade,$newGrade,$user,$data['reason']??($oldGrade===null?'Первичная проверка ДЗ':'Пересдача / изменение оценки'),$data['teacher_comment']??null);
-        $studentUser=User::where('role','student')->where('student_id',$submission->student_id)->first();
+        $studentUser=User::whereIn('role',['student','group_leader'])->where('student_id',$submission->student_id)->first();
         if($studentUser) StudentNotificationService::createForUser($studentUser,'homework_grade','Домашняя работа проверена',$submission->homework->subject->name.': '.$submission->homework->title.' — оценка '.$newGrade.($data['teacher_comment']?'. '.$data['teacher_comment']:''),route('homeworks.index'),'homework-grade:'.$submission->id.':'.($submission->updated_at?->timestamp??time()),['submission_id'=>$submission->id,'grade'=>$newGrade]);
         return back()->with('success','Оценка за домашнее задание сохранена.');
     }
@@ -196,7 +196,7 @@ class HomeworkController extends Controller
         $oldGrade=$submission->grade!==null?(int)$submission->grade:null;
         $submission->update(['grade'=>null,'teacher_comment'=>$data['teacher_comment'],'graded_at'=>null,'status'=>'returned']);
         GradeAuditService::log($submission->student_id,'homework',$submission->id,$oldGrade,null,$user,'Работа возвращена на доработку',$data['teacher_comment']);
-        $studentUser=User::where('role','student')->where('student_id',$submission->student_id)->first();
+        $studentUser=User::whereIn('role',['student','group_leader'])->where('student_id',$submission->student_id)->first();
         if($studentUser) StudentNotificationService::createForUser($studentUser,'homework_returned','Работа возвращена на доработку',$submission->homework->subject->name.': '.$submission->homework->title.'. '.$data['teacher_comment'],route('homeworks.index'),'homework-returned:'.$submission->id.':'.($submission->updated_at?->timestamp??time()),['submission_id'=>$submission->id]);
         return back()->with('success','Работа возвращена студенту на доработку.');
     }
