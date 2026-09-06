@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Homework extends Model
 {
+    protected $table = 'homeworks';
     protected $fillable = ['group_id','subject_id','academic_period_id','work_type_id','grade_weight','teacher_id','title','description','due_at','max_grade'];
     protected $casts = ['due_at' => 'datetime', 'grade_weight' => 'float'];
 
