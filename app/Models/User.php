@@ -17,11 +17,18 @@ class User extends Authenticatable
 
     public function isAdmin(): bool { return $this->role === 'admin'; }
     public function isTeacher(): bool { return $this->role === 'teacher'; }
-    public function isStudent(): bool { return $this->role === 'student'; }
+    public function isGroupLeader(): bool { return $this->role === 'group_leader'; }
+    public function isStudent(): bool { return in_array($this->role, ['student','group_leader'], true); }
 
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function managedGroupId(): ?int
+    {
+        if (!$this->isGroupLeader() || !$this->student_id) return null;
+        return $this->student?->group_id;
     }
 
     public function groups(): BelongsToMany
