@@ -6,6 +6,7 @@ use App\Models\AcademicPeriod;
 use App\Models\Group;
 use App\Models\Homework;
 use App\Models\HomeworkFile;
+use App\Models\HomeworkMaterial;
 use App\Models\HomeworkSubmission;
 use App\Models\Student;
 use App\Models\Subject;
@@ -31,13 +32,13 @@ class HomeworkController extends Controller
             abort_unless($user->student_id,403);
             StudentNotificationService::syncDeadlineReminders($user);
             $student=Student::with('group')->findOrFail($user->student_id);
-            $query=Homework::with(['subject','group','workType','academicPeriod','submissions'=>fn($q)=>$q->where('student_id',$student->id)->with('files')])->where('group_id',$student->group_id);
+            $query=Homework::with(['subject','group','workType','academicPeriod','materials','submissions'=>fn($q)=>$q->where('student_id',$student->id)->with('files')])->where('group_id',$student->group_id);
             if($period) $query->where('academic_period_id',$period->id);
             $homeworks=$query->latest('due_at')->get();
             return view('homeworks.student',compact('student','homeworks','periods','period'));
         }
         if($user->isTeacher()) TeacherNotificationService::syncRiskAlerts($user);
-        $query=Homework::with(['group','subject','teacher','workType','academicPeriod'])->withCount(['submissions','submissions as graded_count'=>fn($q)=>$q->whereNotNull('grade')]);
+        $query=Homework::with(['group','subject','teacher','workType','academicPeriod','materials'])->withCount(['submissions','submissions as graded_count'=>fn($q)=>$q->whereNotNull('grade')]);
         if(!$user->isAdmin()) $query->where('teacher_id',$user->id);
         if($period) $query->where('academic_period_id',$period->id);
         $groups=$user->isAdmin()?Group::orderBy('name')->get():$user->groups()->distinct()->orderBy('name')->get();
@@ -55,21 +56,66 @@ class HomeworkController extends Controller
             'academic_period_id'=>['nullable','exists:academic_periods,id'],'work_type_id'=>['nullable','exists:work_types,id'],
             'grade_weight'=>['nullable','numeric','min:0.1','max:10'],'title'=>['required','string','max:255'],
             'description'=>['nullable','string'],'due_at'=>['nullable','date'],
+            'materials'=>['nullable','array','max:10'],
+            'materials.*'=>['file','mimes:jpg,jpeg,png,webp,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip','max:20480'],
+            'links'=>['nullable','string','max:12000'],
+            'video_links'=>['nullable','string','max:12000'],
         ]);
         if(!$user->isAdmin()) abort_unless($user->groups()->where('groups.id',$data['group_id'])->wherePivot('subject_id',$data['subject_id'])->exists(),403);
         if(empty($data['academic_period_id'])) $data['academic_period_id']=AcademicPeriod::where('active',true)->value('id');
         if(!empty($data['work_type_id']) && empty($data['grade_weight'])) $data['grade_weight']=WorkType::find($data['work_type_id'])?->default_weight ?? 1;
         $data['grade_weight']=$data['grade_weight'] ?? 1; $data['teacher_id']=$user->id;
-        $homework=Homework::create($data); $homework->load(['subject','academicPeriod','workType']);
+        unset($data['materials'],$data['links'],$data['video_links']);
+        $homework=Homework::create($data);
+
+        foreach($request->file('materials',[]) as $file){
+            $path=$file->store("homework-materials/{$homework->id}",'local');
+            HomeworkMaterial::create(['homework_id'=>$homework->id,'type'=>'file','title'=>$file->getClientOriginalName(),'path'=>$path,'original_name'=>$file->getClientOriginalName(),'mime_type'=>$file->getMimeType(),'size'=>$file->getSize()]);
+        }
+        foreach($this->parseLinks($request->input('links')) as $url){
+            HomeworkMaterial::create(['homework_id'=>$homework->id,'type'=>'link','title'=>$url,'url'=>$url]);
+        }
+        foreach($this->parseLinks($request->input('video_links')) as $url){
+            HomeworkMaterial::create(['homework_id'=>$homework->id,'type'=>'video','title'=>$url,'url'=>$url]);
+        }
+
+        $homework->load(['subject','academicPeriod','workType']);
         StudentNotificationService::createForGroup($homework->group_id,'homework','Новое домашнее задание',$homework->subject->name.': '.$homework->title.($homework->due_at?' · до '.$homework->due_at->format('d.m.Y H:i'):'').($homework->academicPeriod?' · '.$homework->academicPeriod->label:''),route('homeworks.index'),'homework:'.$homework->id,['homework_id'=>$homework->id]);
         return back()->with('success','Домашнее задание создано.');
+    }
+
+    private function parseLinks(?string $value): array
+    {
+        if(!$value) return [];
+        return collect(preg_split('/\r\n|\r|\n/', $value))->map(fn($v)=>trim($v))->filter(fn($v)=>filter_var($v,FILTER_VALIDATE_URL))->unique()->values()->all();
     }
 
     public function show(Request $request, Homework $homework): View
     {
         $user=$request->user(); abort_if($user->isStudent(),403); if(!$user->isAdmin()) abort_unless($homework->teacher_id===$user->id,403);
-        $homework->load(['group.students','subject','workType','academicPeriod','submissions.student','submissions.files']);
+        $homework->load(['group.students','subject','workType','academicPeriod','materials','submissions.student','submissions.files']);
         return view('homeworks.show',compact('homework'));
+    }
+
+    private function canAccessHomework(Request $request, Homework $homework): bool
+    {
+        $user=$request->user();
+        if($user->isAdmin()) return true;
+        if($user->isTeacher()) return $homework->teacher_id===$user->id;
+        if($user->isStudent() && $user->student_id) return Student::where('id',$user->student_id)->where('group_id',$homework->group_id)->exists();
+        return false;
+    }
+
+    public function materialView(Request $request, HomeworkMaterial $material): BinaryFileResponse
+    {
+        $material->load('homework'); abort_unless($this->canAccessHomework($request,$material->homework),403); abort_unless($material->type==='file' && $material->isPreviewable(),404); abort_unless(Storage::disk('local')->exists($material->path),404);
+        return response()->file(Storage::disk('local')->path($material->path), ['Content-Type'=>$material->mime_type]);
+    }
+
+    public function materialDownload(Request $request, HomeworkMaterial $material): BinaryFileResponse
+    {
+        $material->load('homework'); abort_unless($this->canAccessHomework($request,$material->homework),403); abort_unless($material->type==='file',404); abort_unless(Storage::disk('local')->exists($material->path),404);
+        return response()->download(Storage::disk('local')->path($material->path),$material->original_name ?: 'material');
     }
 
     public function submit(Request $request, Homework $homework): RedirectResponse
