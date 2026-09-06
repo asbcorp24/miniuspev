@@ -22,13 +22,14 @@ class JournalController extends Controller
     {
         $user = auth()->user();
         if ($user->isAdmin()) return Group::pluck('id')->all();
+        if ($user->isGroupLeader()) return $user->managedGroupId() ? [$user->managedGroupId()] : [];
         return $user->groups()->pluck('groups.id')->unique()->values()->all();
     }
 
     private function allowedSubjectIds(): array
     {
         $user = auth()->user();
-        if ($user->isAdmin()) return Subject::pluck('id')->all();
+        if ($user->isAdmin() || $user->isGroupLeader()) return Subject::pluck('id')->all();
         return $user->subjects()->pluck('subjects.id')->unique()->values()->all();
     }
 
@@ -36,7 +37,22 @@ class JournalController extends Controller
     {
         $user = auth()->user();
         if ($user->isAdmin()) return true;
+        if (!$user->isTeacher()) return false;
         return $user->groups()->where('groups.id', $groupId)->wherePivot('subject_id', $subjectId)->exists();
+    }
+
+    private function canViewPair(int $groupId, int $subjectId): bool
+    {
+        $user = auth()->user();
+        if ($user->isGroupLeader()) return $user->managedGroupId() === $groupId;
+        return $this->canTeach($groupId, $subjectId);
+    }
+
+    private function canManageAttendance(int $groupId): bool
+    {
+        $user = auth()->user();
+        if ($user->isAdmin() || $user->isTeacher()) return true;
+        return $user->isGroupLeader() && $user->managedGroupId() === $groupId;
     }
 
     public function dashboard(): View
@@ -83,7 +99,7 @@ class JournalController extends Controller
         $subjectId = (int) ($request->integer('subject_id') ?: optional($subjects->first())->id);
         $periodId = (int) ($request->integer('period_id') ?: optional($activePeriod)->id);
 
-        if ($groupId && $subjectId && !$this->canTeach($groupId, $subjectId)) $subjectId = 0;
+        if ($groupId && $subjectId && !$this->canViewPair($groupId, $subjectId)) $subjectId = 0;
 
         $group = $groupId ? Group::with('students')->find($groupId) : null;
         $subject = $subjectId ? Subject::find($subjectId) : null;
@@ -130,7 +146,8 @@ class JournalController extends Controller
 
     public function bulkAttendance(Request $request, Lesson $lesson): JsonResponse
     {
-        abort_unless($this->canTeach($lesson->group_id, $lesson->subject_id), 403);
+        abort_unless($this->canManageAttendance($lesson->group_id), 403);
+        if ($request->user()->isTeacher()) abort_unless($this->canTeach($lesson->group_id, $lesson->subject_id), 403);
         $data = $request->validate([
             'attendance' => ['required','in:unmarked,present,absent,late,excused'],
             'only_unmarked' => ['nullable','boolean'],
@@ -146,6 +163,18 @@ class JournalController extends Controller
     public function updateRecord(Request $request, JournalRecord $record): JsonResponse
     {
         $record->loadMissing('lesson');
+        $user = $request->user();
+
+        if ($user->isGroupLeader()) {
+            abort_unless($user->managedGroupId() === $record->lesson->group_id, 403);
+            $data = $request->validate([
+                'attendance' => ['required','in:unmarked,present,absent,late,excused'],
+            ]);
+            $record->update($data);
+            $record->load('student');
+            return response()->json(['ok'=>true,'record'=>$record,'average'=>$record->student->averageGrade($record->lesson->subject_id),'attendance_percent'=>$record->student->attendancePercent($record->lesson->subject_id)]);
+        }
+
         abort_unless($this->canTeach($record->lesson->group_id, $record->lesson->subject_id), 403);
         $data = $request->validate([
             'attendance' => ['sometimes','required','in:unmarked,present,absent,late,excused'],
@@ -178,8 +207,11 @@ class JournalController extends Controller
 
     public function storeStudent(Request $request): RedirectResponse
     {
-        abort_unless(auth()->user()->isAdmin(), 403);
-        Student::create($request->validate(['group_id'=>['required','exists:groups,id'],'last_name'=>['required','string','max:100'],'first_name'=>['required','string','max:100'],'middle_name'=>['nullable','string','max:100'],'student_number'=>['nullable','string','max:100','unique:students,student_number']]));
+        $user = auth()->user();
+        abort_unless($user->isAdmin() || $user->isGroupLeader(), 403);
+        $data = $request->validate(['group_id'=>['required','exists:groups,id'],'last_name'=>['required','string','max:100'],'first_name'=>['required','string','max:100'],'middle_name'=>['nullable','string','max:100'],'student_number'=>['nullable','string','max:100','unique:students,student_number']]);
+        if ($user->isGroupLeader()) abort_unless((int)$data['group_id'] === $user->managedGroupId(), 403);
+        Student::create($data);
         return back()->with('success','Студент добавлен.');
     }
 
