@@ -1,14 +1,26 @@
 @extends('layout')
 @section('title',$homework->title)
 @section('content')
-<div class="d-flex justify-content-between align-items-start mb-4">
+<div class="d-flex justify-content-between align-items-start mb-4 gap-3 flex-wrap">
     <div>
         <a href="{{ route('homeworks.index') }}" class="text-decoration-none">← Домашние задания</a>
         <h1 class="h3 mt-2 mb-1">{{ $homework->title }}</h1>
         <div class="text-muted">{{ $homework->group->name }} · {{ $homework->subject->name }} · срок {{ $homework->due_at ? $homework->due_at->format('d.m.Y H:i') : 'не задан' }}</div>
         @if($homework->description)<div class="mt-3">{{ $homework->description }}</div>@endif
     </div>
+    <div class="d-flex gap-2">
+        <a href="{{ route('homeworks.edit',$homework) }}" class="btn btn-outline-secondary">Редактировать</a>
+        <form method="POST" action="{{ route('homeworks.destroy',$homework) }}" onsubmit="return confirm('Удалить это домашнее задание? Будут удалены материалы и ответы студентов.')">@csrf @method('DELETE')<button class="btn btn-outline-danger">Удалить</button></form>
+    </div>
 </div>
+
+@if($homework->materials->count())
+<div class="card stat-card mb-4"><div class="card-header bg-white fw-semibold">Материалы к заданию</div><div class="card-body"><div class="list-group">
+@foreach($homework->materials as $m)
+<div class="list-group-item d-flex justify-content-between align-items-center gap-3"><div><strong>{{ $m->title }}</strong><div class="small text-muted">{{ $m->type }}</div></div><div class="d-flex gap-2">@if($m->type==='file')@if($m->isPreviewable())<a class="btn btn-sm btn-outline-primary" target="_blank" href="{{ route('homeworks.materials.view',$m) }}">Просмотр</a>@endif<a class="btn btn-sm btn-outline-secondary" href="{{ route('homeworks.materials.download',$m) }}">Скачать</a>@else<a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener" href="{{ $m->url }}">Открыть</a>@endif</div></div>
+@endforeach
+</div></div></div>
+@endif
 
 <div class="card stat-card"><div class="card-body p-0"><div class="table-responsive">
 <table class="table table-hover align-middle mb-0">
