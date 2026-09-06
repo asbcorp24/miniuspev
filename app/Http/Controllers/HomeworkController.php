@@ -67,21 +67,68 @@ class HomeworkController extends Controller
         $data['grade_weight']=$data['grade_weight'] ?? 1; $data['teacher_id']=$user->id;
         unset($data['materials'],$data['links'],$data['video_links']);
         $homework=Homework::create($data);
-
-        foreach($request->file('materials',[]) as $file){
-            $path=$file->store("homework-materials/{$homework->id}",'local');
-            HomeworkMaterial::create(['homework_id'=>$homework->id,'type'=>'file','title'=>$file->getClientOriginalName(),'path'=>$path,'original_name'=>$file->getClientOriginalName(),'mime_type'=>$file->getMimeType(),'size'=>$file->getSize()]);
-        }
-        foreach($this->parseLinks($request->input('links')) as $url){
-            HomeworkMaterial::create(['homework_id'=>$homework->id,'type'=>'link','title'=>$url,'url'=>$url]);
-        }
-        foreach($this->parseLinks($request->input('video_links')) as $url){
-            HomeworkMaterial::create(['homework_id'=>$homework->id,'type'=>'video','title'=>$url,'url'=>$url]);
-        }
+        $this->appendMaterials($request,$homework);
 
         $homework->load(['subject','academicPeriod','workType']);
         StudentNotificationService::createForGroup($homework->group_id,'homework','Новое домашнее задание',$homework->subject->name.': '.$homework->title.($homework->due_at?' · до '.$homework->due_at->format('d.m.Y H:i'):'').($homework->academicPeriod?' · '.$homework->academicPeriod->label:''),route('homeworks.index'),'homework:'.$homework->id,['homework_id'=>$homework->id]);
         return back()->with('success','Домашнее задание создано.');
+    }
+
+    public function edit(Request $request, Homework $homework): View
+    {
+        $user=$request->user(); abort_if($user->isStudent(),403); if(!$user->isAdmin()) abort_unless($homework->teacher_id===$user->id,403);
+        $homework->load('materials');
+        $groups=$user->isAdmin()?Group::orderBy('name')->get():$user->groups()->distinct()->orderBy('name')->get();
+        $subjects=$user->isAdmin()?Subject::orderBy('name')->get():$user->subjects()->distinct()->orderBy('name')->get();
+        $workTypes=WorkType::where('active',true)->orderBy('name')->get();
+        return view('homeworks.edit',compact('homework','groups','subjects','workTypes'));
+    }
+
+    public function update(Request $request, Homework $homework): RedirectResponse
+    {
+        $user=$request->user(); abort_if($user->isStudent(),403); if(!$user->isAdmin()) abort_unless($homework->teacher_id===$user->id,403);
+        $data=$request->validate([
+            'group_id'=>['required','exists:groups,id'],'subject_id'=>['required','exists:subjects,id'],'work_type_id'=>['nullable','exists:work_types,id'],
+            'grade_weight'=>['nullable','numeric','min:0.1','max:10'],'title'=>['required','string','max:255'],'description'=>['nullable','string'],'due_at'=>['nullable','date'],
+            'materials'=>['nullable','array','max:10'],'materials.*'=>['file','mimes:jpg,jpeg,png,webp,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,zip','max:20480'],
+            'links'=>['nullable','string','max:12000'],'video_links'=>['nullable','string','max:12000'],
+        ]);
+        if(!$user->isAdmin()) abort_unless($user->groups()->where('groups.id',$data['group_id'])->wherePivot('subject_id',$data['subject_id'])->exists(),403);
+        if(!empty($data['work_type_id']) && empty($data['grade_weight'])) $data['grade_weight']=WorkType::find($data['work_type_id'])?->default_weight ?? 1;
+        $data['grade_weight']=$data['grade_weight'] ?? 1;
+        unset($data['materials'],$data['links'],$data['video_links']);
+        $homework->update($data);
+        $this->appendMaterials($request,$homework);
+        StudentNotificationService::createForGroup($homework->group_id,'homework_updated','Домашнее задание изменено',$homework->title.($homework->due_at?' · новый срок '.$homework->due_at->format('d.m.Y H:i'):''),route('homeworks.index'),'homework-updated:'.$homework->id.':'.$homework->updated_at?->timestamp,['homework_id'=>$homework->id]);
+        return redirect()->route('homeworks.show',$homework)->with('success','Домашнее задание обновлено.');
+    }
+
+    public function destroy(Request $request, Homework $homework): RedirectResponse
+    {
+        $user=$request->user(); abort_if($user->isStudent(),403); if(!$user->isAdmin()) abort_unless($homework->teacher_id===$user->id,403);
+        $homework->load(['materials','submissions.files']);
+        foreach($homework->materials as $material) if($material->type==='file' && $material->path) Storage::disk('local')->delete($material->path);
+        foreach($homework->submissions as $submission) foreach($submission->files as $file) if($file->path) Storage::disk('local')->delete($file->path);
+        $homework->delete();
+        return redirect()->route('homeworks.index')->with('success','Домашнее задание удалено.');
+    }
+
+    public function destroyMaterial(Request $request, HomeworkMaterial $material): RedirectResponse
+    {
+        $material->load('homework'); $user=$request->user(); abort_if($user->isStudent(),403); if(!$user->isAdmin()) abort_unless($material->homework->teacher_id===$user->id,403);
+        if($material->type==='file' && $material->path) Storage::disk('local')->delete($material->path);
+        $material->delete();
+        return back()->with('success','Материал удалён.');
+    }
+
+    private function appendMaterials(Request $request, Homework $homework): void
+    {
+        foreach($request->file('materials',[]) as $file){
+            $path=$file->store("homework-materials/{$homework->id}",'local');
+            HomeworkMaterial::create(['homework_id'=>$homework->id,'type'=>'file','title'=>$file->getClientOriginalName(),'path'=>$path,'original_name'=>$file->getClientOriginalName(),'mime_type'=>$file->getMimeType(),'size'=>$file->getSize()]);
+        }
+        foreach($this->parseLinks($request->input('links')) as $url) HomeworkMaterial::create(['homework_id'=>$homework->id,'type'=>'link','title'=>$url,'url'=>$url]);
+        foreach($this->parseLinks($request->input('video_links')) as $url) HomeworkMaterial::create(['homework_id'=>$homework->id,'type'=>'video','title'=>$url,'url'=>$url]);
     }
 
     private function parseLinks(?string $value): array
