@@ -40,6 +40,10 @@
                     <a class="nav-link" href="{{ route('schedule.index') }}">Расписание</a>
                     <a class="nav-link" href="{{ route('homeworks.index') }}">Домашние задания</a>
                     <a class="nav-link" href="{{ route('absence-documents.index') }}">Справки</a>
+                    @if(auth()->user()->isGroupLeader())
+                        <a class="nav-link" href="{{ route('journal') }}">Посещаемость группы</a>
+                        <a class="nav-link" href="{{ route('admin.students') }}">Студенты и доступ</a>
+                    @endif
                     <a class="nav-link" href="{{ route('student.notifications') }}">Уведомления @if($studentUnread)<span class="badge rounded-pill text-bg-danger">{{ $studentUnread }}</span>@endif</a>
                 @else
                     <a class="nav-link" href="{{ route('dashboard') }}">Сводка</a>
@@ -61,7 +65,7 @@
             </div>
             @auth
             <div class="d-flex align-items-center gap-3 text-white">
-                <div class="small text-end"><div>{{ auth()->user()->name }}</div><div class="text-white-50">{{ auth()->user()->isAdmin() ? 'Администратор' : (auth()->user()->isStudent() ? 'Студент' : 'Преподаватель') }}</div></div>
+                <div class="small text-end"><div>{{ auth()->user()->name }}</div><div class="text-white-50">{{ auth()->user()->isAdmin() ? 'Администратор' : (auth()->user()->isGroupLeader() ? 'Староста группы' : (auth()->user()->isStudent() ? 'Студент' : 'Преподаватель')) }}</div></div>
                 <form method="POST" action="{{ route('logout') }}">@csrf<button class="btn btn-outline-light btn-sm">Выйти</button></form>
             </div>
             @endauth
