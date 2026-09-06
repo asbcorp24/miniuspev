@@ -75,25 +75,52 @@ class AdminController extends Controller
         return view('admin.students', compact('groups','groupId','students','accounts'));
     }
 
+    private function generateStudentLogin(Student $student): string
+    {
+        $base = $student->student_number ?: 'student'.$student->id;
+        $base = Str::lower(preg_replace('/[^a-zA-Z0-9._-]/u', '', $base) ?: 'student'.$student->id);
+        $email = $base.'@student.local';
+        $suffix = 1;
+        while (User::where('email', $email)->exists()) {
+            $email = $base.$suffix.'@student.local';
+            $suffix++;
+        }
+        return $email;
+    }
+
+    private function generateStudentPassword(): string
+    {
+        return Str::upper(Str::random(2)).Str::lower(Str::random(4)).random_int(1000, 9999).'!';
+    }
+
     public function createStudentAccount(Request $request, Student $student): RedirectResponse
     {
         $this->ensureAdmin();
         abort_if(User::where('student_id', $student->id)->where('role','student')->exists(), 422, 'У студента уже есть учетная запись.');
 
         $data = $request->validate([
-            'email' => ['required','email','unique:users,email'],
-            'password' => ['required','string','min:6','max:100'],
+            'email' => ['nullable','email','unique:users,email'],
+            'password' => ['nullable','string','min:6','max:100'],
         ]);
+
+        $email = $data['email'] ?? $this->generateStudentLogin($student);
+        $password = $data['password'] ?? $this->generateStudentPassword();
 
         User::create([
             'name' => $student->full_name,
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
+            'email' => $email,
+            'password' => Hash::make($password),
             'role' => 'student',
             'student_id' => $student->id,
         ]);
 
-        return back()->with('success', 'Доступ для '.$student->full_name.' создан.');
+        return back()
+            ->with('success', 'Доступ для '.$student->full_name.' создан.')
+            ->with('generated_accounts', [[
+                'name' => $student->full_name,
+                'email' => $email,
+                'password' => $password,
+            ]]);
     }
 
     public function resetStudentPassword(Request $request, User $user): RedirectResponse
@@ -101,10 +128,19 @@ class AdminController extends Controller
         $this->ensureAdmin();
         abort_unless($user->role === 'student' && $user->student_id, 422);
         $data = $request->validate([
-            'password' => ['required','string','min:6','max:100'],
+            'password' => ['nullable','string','min:6','max:100'],
         ]);
-        $user->update(['password' => Hash::make($data['password'])]);
-        return back()->with('success', 'Пароль студента '.$user->name.' изменен.');
+
+        $password = $data['password'] ?? $this->generateStudentPassword();
+        $user->update(['password' => Hash::make($password)]);
+
+        return back()
+            ->with('success', 'Пароль студента '.$user->name.' изменен.')
+            ->with('generated_accounts', [[
+                'name' => $user->name,
+                'email' => $user->email,
+                'password' => $password,
+            ]]);
     }
 
     public function bulkCreateStudentAccounts(Request $request): RedirectResponse
@@ -117,16 +153,8 @@ class AdminController extends Controller
         foreach ($students as $student) {
             if (User::where('student_id', $student->id)->where('role','student')->exists()) continue;
 
-            $base = $student->student_number ?: 'student'.$student->id;
-            $base = Str::lower(preg_replace('/[^a-zA-Z0-9._-]/u', '', $base) ?: 'student'.$student->id);
-            $email = $base.'@student.local';
-            $suffix = 1;
-            while (User::where('email', $email)->exists()) {
-                $email = $base.$suffix.'@student.local';
-                $suffix++;
-            }
-
-            $password = Str::upper(Str::random(2)).Str::lower(Str::random(4)).random_int(1000, 9999).'!';
+            $email = $this->generateStudentLogin($student);
+            $password = $this->generateStudentPassword();
             User::create([
                 'name' => $student->full_name,
                 'email' => $email,
