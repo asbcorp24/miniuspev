@@ -3,9 +3,10 @@
 @section('content')
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
-        <h1 class="h3 mb-1">Доступ студентов</h1>
-        <div class="text-muted">Создание логинов, автогенерация паролей и массовая выдача доступа</div>
+        <h1 class="h3 mb-1">{{ auth()->user()->isGroupLeader() ? 'Студенты моей группы' : 'Доступ студентов' }}</h1>
+        <div class="text-muted">{{ auth()->user()->isGroupLeader() ? 'Посещаемость, состав группы, логины и пароли' : 'Создание логинов, массовая выдача доступа, старосты и смена паролей' }}</div>
     </div>
+    @if(auth()->user()->isAdmin())
     <form method="GET" class="d-flex gap-2">
         <select class="form-select" name="group_id" onchange="this.form.submit()">
             @foreach($groups as $group)
@@ -13,25 +14,24 @@
             @endforeach
         </select>
     </form>
+    @else
+        <span class="badge text-bg-primary fs-6">{{ $groups->first()?->name }}</span>
+    @endif
 </div>
 
 @if(session('generated_accounts'))
 <div class="alert alert-warning border-warning shadow-sm">
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <strong>Сохраните выданные логины и пароли</strong>
+        <strong>Сохраните временные пароли сейчас</strong>
         <button class="btn btn-sm btn-outline-dark" type="button" onclick="copyAccounts()">Копировать всё</button>
     </div>
-    <div class="small mb-2">Пароли показываются в открытом виде только сразу после генерации или смены.</div>
+    <div class="small mb-2">После закрытия страницы пароли в открытом виде больше не показываются.</div>
     <div class="table-responsive">
         <table class="table table-sm table-bordered bg-white mb-0" id="generatedAccounts">
             <thead><tr><th>Студент</th><th>Логин</th><th>Временный пароль</th></tr></thead>
             <tbody>
             @foreach(session('generated_accounts') as $item)
-                <tr>
-                    <td>{{ $item['name'] }}</td>
-                    <td class="account-email"><code>{{ $item['email'] }}</code></td>
-                    <td class="account-password"><code>{{ $item['password'] }}</code></td>
-                </tr>
+                <tr><td>{{ $item['name'] }}</td><td class="account-email">{{ $item['email'] }}</td><td class="account-password"><code>{{ $item['password'] }}</code></td></tr>
             @endforeach
             </tbody>
         </table>
@@ -39,17 +39,37 @@
 </div>
 @endif
 
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-            <strong>Массовая автогенерация</strong>
-            <div class="text-muted small">Для всех активных студентов выбранной группы без доступа будут автоматически созданы логин и пароль.</div>
+<div class="row g-4 mb-4">
+    <div class="col-xl-7">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white"><strong>Добавить студента</strong></div>
+            <div class="card-body">
+                <form method="POST" action="{{ route('students.store') }}" class="row g-2">@csrf
+                    <input type="hidden" name="group_id" value="{{ $groupId }}">
+                    <div class="col-md-3"><input class="form-control" name="last_name" placeholder="Фамилия" required></div>
+                    <div class="col-md-3"><input class="form-control" name="first_name" placeholder="Имя" required></div>
+                    <div class="col-md-3"><input class="form-control" name="middle_name" placeholder="Отчество"></div>
+                    <div class="col-md-2"><input class="form-control" name="student_number" placeholder="№ студента"></div>
+                    <div class="col-md-1"><button class="btn btn-success w-100">+</button></div>
+                </form>
+                <div class="form-text mt-2">Староста может добавлять студентов только в свою группу.</div>
+            </div>
         </div>
-        <form method="POST" action="{{ route('admin.students.bulk') }}" onsubmit="return confirm('Автоматически создать логины и пароли для всех студентов группы без доступа?')">
-            @csrf
-            <input type="hidden" name="group_id" value="{{ $groupId }}">
-            <button class="btn btn-primary">Сгенерировать доступ всей группе</button>
-        </form>
+    </div>
+    <div class="col-xl-5">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <strong>Массовое создание доступа</strong>
+                    <div class="text-muted small">Логины и временные пароли для студентов без аккаунта.</div>
+                </div>
+                <form method="POST" action="{{ route('admin.students.bulk') }}" onsubmit="return confirm('Создать учетные записи для всех студентов группы без доступа?')">
+                    @csrf
+                    <input type="hidden" name="group_id" value="{{ $groupId }}">
+                    <button class="btn btn-primary">Сгенерировать доступ всей группе</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -65,7 +85,7 @@
                     <th>Студент</th>
                     <th>№ студента</th>
                     <th>Статус доступа</th>
-                    <th style="min-width:560px">Управление</th>
+                    <th style="min-width:520px">Управление</th>
                 </tr>
             </thead>
             <tbody>
@@ -75,43 +95,42 @@
                     <td>
                         <strong>{{ $student->full_name }}</strong>
                         <div class="text-muted small">{{ $student->group?->name }}</div>
+                        @if($account?->isGroupLeader())<span class="badge text-bg-info mt-1">Староста группы</span>@endif
                     </td>
                     <td>{{ $student->student_number ?: '—' }}</td>
                     <td>
                         @if($account)
                             <span class="badge text-bg-success">Есть доступ</span>
-                            <div class="small mt-1"><code>{{ $account->email }}</code></div>
+                            <div class="small mt-1">{{ $account->email }}</div>
                         @else
                             <span class="badge text-bg-secondary">Нет доступа</span>
                         @endif
                     </td>
                     <td>
                         @if(!$account)
-                            <div class="mb-2">
-                                <form method="POST" action="{{ route('admin.students.account',$student) }}" onsubmit="return confirm('Сгенерировать логин и пароль для этого студента?')">
-                                    @csrf
-                                    <button class="btn btn-sm btn-success">Сгенерировать логин и пароль</button>
-                                </form>
-                            </div>
-                            <form method="POST" action="{{ route('admin.students.account',$student) }}" class="row g-2">
-                                @csrf
-                                <div class="col-md-7"><input class="form-control form-control-sm" type="email" name="email" placeholder="Логин / email вручную"></div>
-                                <div class="col-md-3"><input class="form-control form-control-sm" type="text" name="password" placeholder="Пароль вручную" minlength="6"></div>
-                                <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Создать</button></div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <form method="POST" action="{{ route('admin.students.account',$student) }}">@csrf<input type="hidden" name="auto" value="1"><button class="btn btn-sm btn-primary">Сгенерировать логин и пароль</button></form>
+                            <form method="POST" action="{{ route('admin.students.account',$student) }}" class="d-flex gap-2">@csrf
+                                <input class="form-control form-control-sm" type="email" name="email" placeholder="Логин / email">
+                                <input class="form-control form-control-sm" type="text" name="password" placeholder="Пароль" minlength="6">
+                                <button class="btn btn-sm btn-outline-primary">Создать вручную</button>
                             </form>
-                            <div class="form-text">Если оставить одно из полей пустым, оно будет сгенерировано автоматически.</div>
+                        </div>
                         @else
-                            <div class="d-flex flex-wrap gap-2 mb-2">
-                                <form method="POST" action="{{ route('admin.students.password',$account) }}" onsubmit="return confirm('Сгенерировать новый пароль? Старый пароль перестанет работать.')">
-                                    @csrf
-                                    <button class="btn btn-sm btn-warning">Сгенерировать новый пароль</button>
-                                </form>
-                            </div>
-                            <form method="POST" action="{{ route('admin.students.password',$account) }}" class="row g-2" onsubmit="return confirm('Изменить пароль этого студента?')">
-                                @csrf
-                                <div class="col-md-8"><input class="form-control form-control-sm" type="text" name="password" placeholder="Новый пароль вручную" minlength="6"></div>
-                                <div class="col-md-4"><button class="btn btn-sm btn-outline-warning w-100">Сменить пароль</button></div>
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <form method="POST" action="{{ route('admin.students.password',$account) }}">@csrf<input type="hidden" name="auto" value="1"><button class="btn btn-sm btn-outline-warning">Сгенерировать новый пароль</button></form>
+                            <form method="POST" action="{{ route('admin.students.password',$account) }}" class="d-flex gap-2">@csrf
+                                <input class="form-control form-control-sm" type="text" name="password" placeholder="Новый пароль" minlength="6" required>
+                                <button class="btn btn-sm btn-outline-secondary">Сменить вручную</button>
                             </form>
+                            @if(auth()->user()->isAdmin())
+                                @if($account->isGroupLeader())
+                                <form method="POST" action="{{ route('admin.students.demote-leader',$account) }}" onsubmit="return confirm('Снять роль старосты?')">@csrf<button class="btn btn-sm btn-outline-danger">Снять старосту</button></form>
+                                @else
+                                <form method="POST" action="{{ route('admin.students.promote-leader',$account) }}" onsubmit="return confirm('Назначить этого студента старостой группы?')">@csrf<button class="btn btn-sm btn-outline-info">Назначить старостой</button></form>
+                                @endif
+                            @endif
+                        </div>
                         @endif
                     </td>
                 </tr>
