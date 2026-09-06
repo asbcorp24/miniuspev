@@ -19,6 +19,38 @@ class AdminController extends Controller
         abort_unless(auth()->user()?->isAdmin(), 403);
     }
 
+    private function ensureStudentManager(): void
+    {
+        $user = auth()->user();
+        abort_unless($user && ($user->isAdmin() || $user->isGroupLeader()), 403);
+        if ($user->isGroupLeader()) abort_unless($user->managedGroupId(), 403);
+    }
+
+    private function ensureStudentInScope(Student $student): void
+    {
+        $this->ensureStudentManager();
+        $user = auth()->user();
+        if ($user->isGroupLeader()) abort_unless($student->group_id === $user->managedGroupId(), 403);
+    }
+
+    private function generateLogin(Student $student): string
+    {
+        $base = $student->student_number ?: 'student'.$student->id;
+        $base = Str::lower(preg_replace('/[^a-zA-Z0-9._-]/u', '', $base) ?: 'student'.$student->id);
+        $email = $base.'@student.local';
+        $suffix = 1;
+        while (User::where('email', $email)->exists()) {
+            $email = $base.$suffix.'@student.local';
+            $suffix++;
+        }
+        return $email;
+    }
+
+    private function generatePassword(): string
+    {
+        return Str::upper(Str::random(2)).Str::lower(Str::random(4)).random_int(1000, 9999).'!';
+    }
+
     public function teachers(): View
     {
         $this->ensureAdmin();
@@ -60,51 +92,39 @@ class AdminController extends Controller
 
     public function students(Request $request): View
     {
-        $this->ensureAdmin();
-        $groups = Group::orderBy('name')->get();
-        $groupId = $request->integer('group_id') ?: optional($groups->first())->id;
+        $this->ensureStudentManager();
+        $user = auth()->user();
+        $groups = $user->isAdmin()
+            ? Group::orderBy('name')->get()
+            : Group::whereKey($user->managedGroupId())->get();
+        $groupId = $user->isAdmin()
+            ? ($request->integer('group_id') ?: optional($groups->first())->id)
+            : $user->managedGroupId();
 
         $students = Student::with(['group'])
             ->when($groupId, fn($q) => $q->where('group_id', $groupId))
             ->orderBy('last_name')->orderBy('first_name')->get();
 
-        $accounts = User::where('role', 'student')
+        $accounts = User::whereIn('role', ['student','group_leader'])
             ->whereIn('student_id', $students->pluck('id'))
             ->get()->keyBy('student_id');
 
         return view('admin.students', compact('groups','groupId','students','accounts'));
     }
 
-    private function generateStudentLogin(Student $student): string
-    {
-        $base = $student->student_number ?: 'student'.$student->id;
-        $base = Str::lower(preg_replace('/[^a-zA-Z0-9._-]/u', '', $base) ?: 'student'.$student->id);
-        $email = $base.'@student.local';
-        $suffix = 1;
-        while (User::where('email', $email)->exists()) {
-            $email = $base.$suffix.'@student.local';
-            $suffix++;
-        }
-        return $email;
-    }
-
-    private function generateStudentPassword(): string
-    {
-        return Str::upper(Str::random(2)).Str::lower(Str::random(4)).random_int(1000, 9999).'!';
-    }
-
     public function createStudentAccount(Request $request, Student $student): RedirectResponse
     {
-        $this->ensureAdmin();
-        abort_if(User::where('student_id', $student->id)->where('role','student')->exists(), 422, 'У студента уже есть учетная запись.');
+        $this->ensureStudentInScope($student);
+        abort_if(User::where('student_id', $student->id)->whereIn('role',['student','group_leader'])->exists(), 422, 'У студента уже есть учетная запись.');
 
         $data = $request->validate([
             'email' => ['nullable','email','unique:users,email'],
             'password' => ['nullable','string','min:6','max:100'],
+            'auto' => ['nullable','boolean'],
         ]);
 
-        $email = $data['email'] ?? $this->generateStudentLogin($student);
-        $password = $data['password'] ?? $this->generateStudentPassword();
+        $email = $data['email'] ?? $this->generateLogin($student);
+        $password = $data['password'] ?? $this->generatePassword();
 
         User::create([
             'name' => $student->full_name,
@@ -114,47 +134,40 @@ class AdminController extends Controller
             'student_id' => $student->id,
         ]);
 
-        return back()
-            ->with('success', 'Доступ для '.$student->full_name.' создан.')
-            ->with('generated_accounts', [[
-                'name' => $student->full_name,
-                'email' => $email,
-                'password' => $password,
-            ]]);
+        return back()->with('success', 'Доступ для '.$student->full_name.' создан.')
+            ->with('generated_accounts', [['name'=>$student->full_name,'email'=>$email,'password'=>$password]]);
     }
 
     public function resetStudentPassword(Request $request, User $user): RedirectResponse
     {
-        $this->ensureAdmin();
-        abort_unless($user->role === 'student' && $user->student_id, 422);
+        $this->ensureStudentManager();
+        abort_unless(in_array($user->role,['student','group_leader'],true) && $user->student_id, 422);
+        $student = Student::findOrFail($user->student_id);
+        $this->ensureStudentInScope($student);
         $data = $request->validate([
             'password' => ['nullable','string','min:6','max:100'],
+            'auto' => ['nullable','boolean'],
         ]);
-
-        $password = $data['password'] ?? $this->generateStudentPassword();
+        $password = $data['password'] ?? $this->generatePassword();
         $user->update(['password' => Hash::make($password)]);
-
-        return back()
-            ->with('success', 'Пароль студента '.$user->name.' изменен.')
-            ->with('generated_accounts', [[
-                'name' => $user->name,
-                'email' => $user->email,
-                'password' => $password,
-            ]]);
+        return back()->with('success', 'Пароль студента '.$user->name.' изменен.')
+            ->with('generated_accounts', [['name'=>$user->name,'email'=>$user->email,'password'=>$password]]);
     }
 
     public function bulkCreateStudentAccounts(Request $request): RedirectResponse
     {
-        $this->ensureAdmin();
+        $this->ensureStudentManager();
+        $user = auth()->user();
         $data = $request->validate(['group_id' => ['required','exists:groups,id']]);
+        if ($user->isGroupLeader()) abort_unless((int)$data['group_id'] === $user->managedGroupId(), 403);
+
         $students = Student::where('group_id', $data['group_id'])->where('active', true)->orderBy('last_name')->get();
         $created = [];
 
         foreach ($students as $student) {
-            if (User::where('student_id', $student->id)->where('role','student')->exists()) continue;
-
-            $email = $this->generateStudentLogin($student);
-            $password = $this->generateStudentPassword();
+            if (User::where('student_id', $student->id)->whereIn('role',['student','group_leader'])->exists()) continue;
+            $email = $this->generateLogin($student);
+            $password = $this->generatePassword();
             User::create([
                 'name' => $student->full_name,
                 'email' => $email,
@@ -167,5 +180,25 @@ class AdminController extends Controller
 
         if (!$created) return back()->with('success', 'У всех активных студентов этой группы доступ уже создан.');
         return back()->with('success', 'Создано учетных записей: '.count($created))->with('generated_accounts', $created);
+    }
+
+    public function promoteGroupLeader(User $user): RedirectResponse
+    {
+        $this->ensureAdmin();
+        abort_unless($user->student_id && in_array($user->role,['student','group_leader'],true), 422);
+        User::where('role','group_leader')
+            ->whereHas('student', fn($q) => $q->where('group_id', $user->student?->group_id))
+            ->where('id','!=',$user->id)
+            ->update(['role'=>'student']);
+        $user->update(['role'=>'group_leader']);
+        return back()->with('success','Староста назначен: '.$user->name.'.');
+    }
+
+    public function demoteGroupLeader(User $user): RedirectResponse
+    {
+        $this->ensureAdmin();
+        abort_unless($user->role === 'group_leader', 422);
+        $user->update(['role'=>'student']);
+        return back()->with('success','Роль старосты снята с '.$user->name.'.');
     }
 }
