@@ -61,6 +61,7 @@ class AdminController extends Controller
             'teachers' => User::where('role','teacher')->with(['groups','subjects'])->orderBy('name')->get(),
             'groups' => Group::orderBy('name')->get(),
             'subjects' => Subject::orderBy('name')->get(),
+            'assignments' => TeacherAssignment::with(['group','subject'])->get()->groupBy('user_id'),
         ]);
     }
 
