@@ -1,8 +1,9 @@
 @extends('layout')
-@section('title','Преподаватели')
+@section('title','Преподаватели и нагрузка')
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div><h1 class="h3 mb-1">Преподаватели</h1><div class="text-muted">Учетные записи и назначение групп/дисциплин</div></div>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div><h1 class="h3 mb-1">Преподаватели и нагрузка</h1><div class="text-muted">Назначение предметов преподавателям по группам</div></div>
+    <a class="btn btn-outline-primary" href="{{ route('admin.subjects') }}">Управление предметами</a>
 </div>
 
 <div class="row g-4">
@@ -14,7 +15,7 @@
                     <div class="mb-3"><label class="form-label">ФИО</label><input class="form-control" name="name" required></div>
                     <div class="mb-3"><label class="form-label">Email</label><input class="form-control" type="email" name="email" required></div>
                     <div class="mb-3"><label class="form-label">Пароль</label><input class="form-control" type="password" name="password" required></div>
-                    <button class="btn btn-primary w-100">Создать</button>
+                    <button class="btn btn-primary w-100">Создать преподавателя</button>
                 </form>
             </div>
         </div>
@@ -27,18 +28,25 @@
                     <div><strong>{{ $teacher->name }}</strong><div class="text-muted small">{{ $teacher->email }}</div></div>
                     <span class="badge text-bg-secondary align-self-start">Преподаватель</span>
                 </div>
-                <div class="small mb-3">
-                    <strong>Назначения:</strong>
-                    @forelse($teacher->groups as $group)
-                        @php($subject = $subjects->firstWhere('id', $group->pivot->subject_id))
-                        <span class="badge text-bg-light border me-1">{{ $group->name }} · {{ $subject?->name ?? 'предмет' }}</span>
+
+                <div class="mb-3">
+                    <strong class="d-block mb-2">Назначенные предметы:</strong>
+                    @forelse($assignments->get($teacher->id, collect()) as $assignment)
+                        <div class="d-inline-flex align-items-center border rounded px-2 py-1 me-2 mb-2 bg-light">
+                            <span>{{ $assignment->group?->name }} · {{ $assignment->subject?->name }}</span>
+                            <form method="POST" action="{{ route('admin.teachers.unassign',[$teacher,$assignment]) }}" class="ms-2" onsubmit="return confirm('Удалить это назначение?')">
+                                @csrf @method('DELETE')
+                                <button class="btn btn-sm btn-link text-danger p-0 text-decoration-none" title="Удалить">×</button>
+                            </form>
+                        </div>
                     @empty
-                        <span class="text-muted">нет</span>
+                        <span class="text-muted">Предметы и группы пока не назначены.</span>
                     @endforelse
                 </div>
+
                 <form class="row g-2" method="POST" action="{{ route('admin.teachers.assign',$teacher) }}">@csrf
                     <div class="col-md-5"><select class="form-select" name="group_id" required><option value="">Группа</option>@foreach($groups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select></div>
-                    <div class="col-md-5"><select class="form-select" name="subject_id" required><option value="">Дисциплина</option>@foreach($subjects as $subject)<option value="{{ $subject->id }}">{{ $subject->name }}</option>@endforeach</select></div>
+                    <div class="col-md-5"><select class="form-select" name="subject_id" required><option value="">Предмет</option>@foreach($subjects as $subject)<option value="{{ $subject->id }}">{{ $subject->name }}</option>@endforeach</select></div>
                     <div class="col-md-2"><button class="btn btn-outline-primary w-100">Назначить</button></div>
                 </form>
             </div>
