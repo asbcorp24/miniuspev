@@ -127,6 +127,8 @@ class JournalController extends Controller
             'grade_weight' => ['nullable','numeric','min:0.1','max:10'],
             'lesson_date' => ['required','date'],
             'topic' => ['nullable','string','max:255'],
+            'lesson_kind' => ['nullable','string','max:100'],
+            'description' => ['nullable','string','max:20000'],
         ]);
         abort_unless($this->canTeach((int)$data['group_id'], (int)$data['subject_id']), 403);
 
