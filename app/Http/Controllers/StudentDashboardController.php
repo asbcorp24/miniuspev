@@ -7,6 +7,7 @@ use App\Models\FinalGrade;
 use App\Models\Homework;
 use App\Models\HomeworkSubmission;
 use App\Models\JournalRecord;
+use App\Models\Lesson;
 use App\Models\ScheduleEntry;
 use App\Models\Student;
 use App\Services\GradeCalculationService;
@@ -44,6 +45,11 @@ class StudentDashboardController extends Controller
             ->where('weekday',now()->dayOfWeekIso)
             ->when($period,fn($q)=>$q->where('academic_period_id',$period->id))
             ->orderBy('starts_at')->get();
+
+        $recentLessons = Lesson::with(['subject','workType','materials'])
+            ->where('group_id',$student->group_id)
+            ->when($period,fn($q)=>$q->where('academic_period_id',$period->id))
+            ->orderByDesc('lesson_date')->orderByDesc('id')->limit(8)->get();
 
         $upcomingHomeworksQuery = Homework::with(['subject','workType'])
             ->where('group_id', $student->group_id)
@@ -97,6 +103,7 @@ class StudentDashboardController extends Controller
             'debtCount' => $debts->count(),
             'subjectStats' => $subjectStats,
             'debts' => $debts,
+            'recentLessons' => $recentLessons,
             'upcomingHomeworks' => $upcomingHomeworks,
             'submissions' => $submissions->take(10),
             'recentRecords' => $records->take(12),
