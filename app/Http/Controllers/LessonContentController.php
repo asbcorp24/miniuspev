@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Lesson;
 use App\Models\LessonMaterial;
 use App\Models\Student;
+use App\Services\StudentNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -44,11 +45,15 @@ class LessonContentController extends Controller
             $query->where('group_id',$user->student->group_id);
         } elseif ($user->isTeacher()) {
             $pairs=$user->groups()->get()->map(fn($g)=>[$g->id,(int)$g->pivot->subject_id]);
-            $query->where(function($q) use($pairs){
-                foreach($pairs as [$groupId,$subjectId]) {
-                    $q->orWhere(fn($x)=>$x->where('group_id',$groupId)->where('subject_id',$subjectId));
-                }
-            });
+            if ($pairs->isEmpty()) {
+                $query->whereRaw('1=0');
+            } else {
+                $query->where(function($q) use($pairs){
+                    foreach($pairs as [$groupId,$subjectId]) {
+                        $q->orWhere(fn($x)=>$x->where('group_id',$groupId)->where('subject_id',$subjectId));
+                    }
+                });
+            }
         }
 
         $lessons=$query->paginate(30);
@@ -93,7 +98,18 @@ class LessonContentController extends Controller
         foreach($this->parseLinks($request->input('video_links')) as $url)
             LessonMaterial::create(['lesson_id'=>$lesson->id,'type'=>'video','title'=>$url,'url'=>$url]);
 
-        return back()->with('success','Материалы урока сохранены.');
+        $lesson->loadMissing('subject');
+        StudentNotificationService::createForGroup(
+            $lesson->group_id,
+            'lesson_material',
+            'Материалы урока опубликованы',
+            ($lesson->subject?->name ? $lesson->subject->name.': ' : '').($lesson->topic ?: 'новый материал урока'),
+            route('lessons.content.show',$lesson),
+            'lesson-material:'.$lesson->id.':'.$lesson->updated_at?->timestamp,
+            ['lesson_id'=>$lesson->id]
+        );
+
+        return back()->with('success','Материалы урока сохранены и доступны студентам.');
     }
 
     public function destroyMaterial(Request $request, LessonMaterial $material): RedirectResponse
