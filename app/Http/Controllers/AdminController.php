@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Group;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Models\TeacherAssignment;
+use App\Models\Lesson;
+use App\Models\Homework;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -84,10 +87,47 @@ class AdminController extends Controller
             'subject_id' => ['required','exists:subjects,id'],
         ]);
 
-        $user->groups()->syncWithoutDetaching([
-            $data['group_id'] => ['subject_id' => $data['subject_id']]
+        TeacherAssignment::firstOrCreate([
+            'user_id' => $user->id,
+            'group_id' => $data['group_id'],
+            'subject_id' => $data['subject_id'],
         ]);
-        return back()->with('success','Назначение добавлено.');
+        return back()->with('success','Предмет и группа назначены преподавателю.');
+    }
+
+    public function unassign(User $user, TeacherAssignment $assignment): RedirectResponse
+    {
+        $this->ensureAdmin();
+        abort_unless($user->role === 'teacher' && $assignment->user_id === $user->id, 404);
+        $assignment->delete();
+        return back()->with('success','Назначение преподавателя удалено.');
+    }
+
+    public function subjects(): View
+    {
+        $this->ensureAdmin();
+        return view('admin.subjects', ['subjects'=>Subject::orderBy('name')->get()]);
+    }
+
+    public function storeSubject(Request $request): RedirectResponse
+    {
+        $this->ensureAdmin();
+        Subject::create($request->validate([
+            'name'=>['required','string','max:255'],
+            'code'=>['nullable','string','max:50','unique:subjects,code'],
+        ]));
+        return back()->with('success','Предмет добавлен.');
+    }
+
+    public function destroySubject(Subject $subject): RedirectResponse
+    {
+        $this->ensureAdmin();
+        $used = Lesson::where('subject_id',$subject->id)->exists()
+            || Homework::where('subject_id',$subject->id)->exists()
+            || TeacherAssignment::where('subject_id',$subject->id)->exists();
+        abort_if($used,422,'Предмет уже используется. Сначала удалите назначения и связанные учебные данные.');
+        $subject->delete();
+        return back()->with('success','Предмет удалён.');
     }
 
     public function students(Request $request): View
