@@ -38,6 +38,7 @@
                 @if(auth()->check() && auth()->user()->isStudent())
                     <a class="nav-link" href="{{ route('student.dashboard') }}">Мой кабинет</a>
                     <a class="nav-link" href="{{ route('schedule.index') }}">Расписание</a>
+                    <a class="nav-link" href="{{ route('lessons.content.index') }}">Уроки и лекции</a>
                     <a class="nav-link" href="{{ route('homeworks.index') }}">Домашние задания</a>
                     <a class="nav-link" href="{{ route('absence-documents.index') }}">Справки</a>
                     @if(auth()->user()->isGroupLeader())
@@ -49,6 +50,7 @@
                     <a class="nav-link" href="{{ route('dashboard') }}">Сводка</a>
                     <a class="nav-link" href="{{ route('schedule.index') }}">Расписание</a>
                     <a class="nav-link" href="{{ route('journal') }}">Журнал</a>
+                    <a class="nav-link" href="{{ route('lessons.content.index') }}">Уроки и лекции</a>
                     <a class="nav-link" href="{{ route('homeworks.index') }}">Домашние задания</a>
                     <a class="nav-link" href="{{ route('absence-documents.index') }}">Справки</a>
                     <a class="nav-link" href="{{ route('academic.finals') }}">Итоги</a>
@@ -59,6 +61,7 @@
                     @if(auth()->user()?->isAdmin())
                         <a class="nav-link" href="{{ route('academic.settings') }}">Семестры</a>
                         <a class="nav-link" href="{{ route('admin.teachers') }}">Преподаватели</a>
+                        <a class="nav-link" href="{{ route('admin.subjects') }}">Предметы</a>
                         <a class="nav-link" href="{{ route('admin.students') }}">Доступ студентов</a>
                     @endif
                 @endif
