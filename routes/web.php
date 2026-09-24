@@ -6,6 +6,7 @@ use App\Http\Controllers\AbsenceDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HomeworkController;
 use App\Http\Controllers\JournalController;
+use App\Http\Controllers\LessonContentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ScheduleController;
@@ -50,6 +51,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/academic/finals', [AcademicController::class, 'finals'])->name('academic.finals');
     Route::post('/academic/finals/{student}', [AcademicController::class, 'setFinal'])->name('academic.finals.set');
 
+    Route::get('/lessons-library', [LessonContentController::class, 'index'])->name('lessons.content.index');
+    Route::get('/lessons-library/{lesson}', [LessonContentController::class, 'show'])->name('lessons.content.show');
+    Route::put('/lessons-library/{lesson}', [LessonContentController::class, 'update'])->name('lessons.content.update');
+    Route::get('/lesson-materials/{material}/view', [LessonContentController::class, 'viewMaterial'])->name('lessons.materials.view');
+    Route::get('/lesson-materials/{material}/download', [LessonContentController::class, 'downloadMaterial'])->name('lessons.materials.download');
+    Route::delete('/lesson-materials/{material}', [LessonContentController::class, 'destroyMaterial'])->name('lessons.materials.destroy');
+
     Route::get('/journal', [JournalController::class, 'journal'])->name('journal');
     Route::post('/lessons', [JournalController::class, 'createLesson'])->name('lessons.store');
     Route::post('/lessons/{lesson}/attendance', [JournalController::class, 'bulkAttendance'])->name('lessons.attendance.bulk');
@@ -79,6 +87,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/teachers', [AdminController::class, 'teachers'])->name('admin.teachers');
     Route::post('/admin/teachers', [AdminController::class, 'storeTeacher'])->name('admin.teachers.store');
     Route::post('/admin/teachers/{user}/assign', [AdminController::class, 'assign'])->name('admin.teachers.assign');
+    Route::delete('/admin/teachers/{user}/assignments/{assignment}', [AdminController::class, 'unassign'])->name('admin.teachers.unassign');
+    Route::get('/admin/subjects', [AdminController::class, 'subjects'])->name('admin.subjects');
+    Route::post('/admin/subjects', [AdminController::class, 'storeSubject'])->name('admin.subjects.store');
+    Route::delete('/admin/subjects/{subject}', [AdminController::class, 'destroySubject'])->name('admin.subjects.destroy');
 
     Route::get('/admin/students', [AdminController::class, 'students'])->name('admin.students');
     Route::post('/admin/students/{student}/account', [AdminController::class, 'createStudentAccount'])->name('admin.students.account');
