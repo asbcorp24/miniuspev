@@ -18,7 +18,7 @@
                 </div>
                 <span class="badge text-bg-light border align-self-start">{{ $lesson->lesson_kind ?: ($lesson->workType?->name ?? 'Занятие') }}</span>
             </div>
-            @if($lesson->description)<p class="small">{{ IlluminateSupportStr::limit($lesson->description,180) }}</p>@endif
+            @if($lesson->description)<p class="small">{{ \Illuminate\Support\Str::limit($lesson->description,180) }}</p>@endif
             <div class="small text-muted mb-3">Материалов: {{ $lesson->materials->count() }}</div>
             <a href="{{ route('lessons.content.show',$lesson) }}" class="btn btn-outline-primary w-100">Открыть урок</a>
         </div>
