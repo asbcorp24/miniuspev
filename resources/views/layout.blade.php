@@ -19,7 +19,27 @@
         .navbar-brand { font-weight:700; }
         .stat-card { border:0; box-shadow:0 2px 12px rgba(0,0,0,.06); }
         .journal-table th, .journal-table td { vertical-align:middle; white-space:nowrap; }
-        .student-col { min-width:240px; position:sticky; left:0; background:#fff; z-index:2; }
+        .student-col {
+            min-width:240px;
+            max-width:240px;
+            width:240px;
+            position:sticky;
+            left:0;
+            background:#fff !important;
+            z-index:6;
+            box-shadow:6px 0 10px -8px rgba(0,0,0,.45);
+        }
+        .journal-table thead .student-col {
+            z-index:8;
+            background:#f8f9fa !important;
+        }
+        .journal-table tbody tr:hover .student-col {
+            background:#f8f9fa !important;
+        }
+        .journal-table .student-col {
+            white-space:normal;
+            line-height:1.2;
+        }
         .lesson-col { min-width:170px; }
         .save-ok { outline:2px solid #198754 !important; }
         .mobile-bottom-nav { display:none; }
@@ -58,6 +78,12 @@
                 background:transparent;
             }
             .table-responsive { border-radius:.5rem; }
+            .journal-table .student-col {
+                min-width:180px;
+                width:180px;
+                max-width:180px;
+                font-size:.82rem;
+            }
         }
     </style>
 </head>
