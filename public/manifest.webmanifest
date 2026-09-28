@@ -1,0 +1,21 @@
+{
+  "name": "MiniUspev",
+  "short_name": "MiniUspev",
+  "description": "Электронный журнал, уроки, домашние задания и учебные материалы",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#f4f6f9",
+  "theme_color": "#212529",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
