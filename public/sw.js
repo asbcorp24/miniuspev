@@ -2,6 +2,7 @@ const CACHE_NAME = 'miniuspev-v1';
 const STATIC_ASSETS = [
   '/manifest.webmanifest',
   '/icons/app-icon.svg',
+  '/offline.html',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js'
 ];
@@ -31,7 +32,7 @@ self.addEventListener('fetch', event => {
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() =>
-        caches.match(request).then(cached => cached || caches.match('/'))
+        caches.match(request).then(cached => cached || caches.match('/offline.html'))
       )
     );
     return;
